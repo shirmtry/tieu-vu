@@ -1,0 +1,38 @@
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.spec
+
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+
+# --- Models (tai rieng, khong commit) ---
+models/vosk-*/
+models/*.onnx
+models/*.gguf
+
+# --- Runtime data ---
+browser_profile/
+logs/*.db
+logs/*.log*
+config/calibration_*.npz
+*.db-journal
+*.sqlite3
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,320 @@
+# =====================================================================
+# HTK_ZeroTouch - config.yaml
+# Toan bo nguong (thresholds), ban do phim tat va cai dat cua he thong.
+# Moi gia tri deu co the tinh chinh ma khong can sua code.
+# =====================================================================
+
+app:
+  name: "Tiểu Vũ"
+  # Hien thi cua so preview camera + HUD de debug. Dat false khi chay that.
+  show_preview: true
+  # Muc log: DEBUG | INFO | WARNING | ERROR
+  log_level: "INFO"
+  # Thu muc ghi log (tu dong tao). De rong = chi in ra console.
+  log_dir: "logs"
+
+camera:
+  # So thu tu camera (0 = webcam mac dinh).
+  index: 0
+  width: 960
+  height: 540
+  fps: 30
+  # Lat guong anh camera de trai/phai khop voi tay nguoi dung.
+  flip_horizontal: true
+  # So lan thu lai khi mat camera truoc khi bao loi.
+  max_retries: 5
+  retry_delay_sec: 1.0
+
+# ---------------------------------------------------------------------
+# VISION - MediaPipe Hands & FaceMesh
+# ---------------------------------------------------------------------
+vision:
+  hands:
+    max_num_hands: 2
+    min_detection_confidence: 0.7
+    min_tracking_confidence: 0.6
+    # Mo hinh do phuc tap: 0 (nhanh) | 1 (chinh xac hon).
+    model_complexity: 1
+  face:
+    enabled: true
+    min_detection_confidence: 0.6
+    min_tracking_confidence: 0.6
+    # refine_landmarks=true de lay them vung mat (iris) phuc vu gaze scroll.
+    refine_landmarks: true
+
+# ---------------------------------------------------------------------
+# NGUONG CU CHI (GESTURE THRESHOLDS)
+# Khoang cach duoc chuan hoa theo kich thuoc ban tay (palm size),
+# nen khong phu thuoc khoang cach tu tay den camera.
+# ---------------------------------------------------------------------
+gesture:
+  # Nguong cham ngon tay (pinch) tinh theo ti le so voi palm size.
+  pinch_threshold: 0.35        # thumb + index
+  pinch_middle_threshold: 0.40 # thumb + middle (right click)
+  # Diem chup pinch phai nam xa co tay (>= x palm size) -> phan biet
+  # pinch chu dong voi ngon tay gap cham nhau trong long ban tay (fist).
+  pinch_min_reach: 0.9
+  # Nguong xac dinh ngon tay dang duoi (extended).
+  finger_extend_ratio: 1.15
+  # Cuon bang mat (gaze): huong nhin suy ra tu vi tri iris.
+  gaze:
+    enabled: true
+    up_threshold: 0.30         # iris o phia tren -> cuon len
+    down_threshold: 0.70       # iris o phia duoi -> cuon xuong
+    hold_sec: 1.0              # giu huong nhin 1s moi kich hoat
+  # Cuon bang chu V (2 ngon tay): do nhay doc.
+  v_scroll_sensitivity: 3.0
+  # Alt+Tab: so ngon tay duoi (tru ngon cai) de kich hoat.
+  alt_tab_finger_count: 4
+  # Cu chi 3 ngon tay (tro + giua + ap ut, cai gap) -> xu ly clipboard bang AI.
+  ai_gesture:
+    enabled: true
+  # Volume: khoang cach 2 ngon tro (chuan hoa theo khung hinh).
+  volume:
+    min_dist: 0.10             # gan = 0%
+    max_dist: 0.80             # xa = 100%
+  # Vuot tay (swipe) cho Undo/Redo va chuyen desktop.
+  swipe:
+    min_displacement: 0.20     # do dich chuyen toi thieu (ti le khung hinh)
+    max_duration_sec: 0.6      # phai xay ra nhanh trong khoang nay
+    min_velocity: 0.6          # van toc toi thieu (frame-width / sec)
+
+# ---------------------------------------------------------------------
+# STATE MACHINE - Bo may trang thai chong xung dot cu chi
+# ---------------------------------------------------------------------
+state_machine:
+  # Thoi gian cho giua 2 lan kich hoat cung 1 hanh dong (chong double-trigger).
+  default_cooldown_sec: 0.5
+  # Cooldown rieng cho tung hanh dong (ghi de default).
+  cooldowns:
+    left_click: 0.45
+    right_click: 0.6
+    drag: 0.8
+    scroll: 0.25
+    alt_tab: 1.0
+    close_tab: 1.2
+    open_app: 2.0
+    volume: 0.15
+    play_pause: 1.0
+    undo: 0.7
+    redo: 0.7
+    copy_plain: 0.8
+    paste_plain: 0.8
+    switch_desktop: 1.0
+    process_email: 3.0
+  # So frame on dinh lien tiep truoc khi chap nhan 1 cu chi (chong nhieu).
+  stability_frames: 4
+  # Thu tu uu tien khi nhieu cu chi xay ra dong thoi (cao -> thap).
+  # 2 tay (he thong) > mat (cuon) > 1 tay (chuot).
+  priority:
+    - "TWO_HAND_SYSTEM"
+    - "FACE_SCROLL"
+    - "ONE_HAND_MOUSE"
+  # Trang thai khoi dau.
+  initial_state: "IDLE"
+  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS.
+  initial_mode: "IDLE"
+  # Thoi gian giu chuot trai de chuyen sang Drag (giu 1s = drag).
+  drag_hold_sec: 1.0
+
+# ---------------------------------------------------------------------
+# MOUSE - One Euro Filter + anh xa toa do
+# ---------------------------------------------------------------------
+mouse:
+  # Vung bien do (deadzone) o bien khung hinh, giup chuot khong bi ket o goc.
+  margin: 0.12
+  # One Euro Filter: min_cutoff cang nho cang muot, beta cang lon cang nhanh.
+  one_euro:
+    min_cutoff: 1.0
+    beta: 0.007
+    d_cutoff: 1.0
+  # Do nhay con tro (nhan them vao delta).
+  speed: 1.4
+  # So buoc cuon moi lan kich hoat.
+  scroll_step: 3
+  # Fail-safe cua PyAutoGUI (dua chuot vao goc tren-trai de dung khan cap).
+  failsafe: true
+
+# ---------------------------------------------------------------------
+# SYSTEM - Am thanh, media, app launcher
+# ---------------------------------------------------------------------
+system:
+  # App mac dinh mo khi xoe 2 ban tay.
+  default_app: "chrome"
+  # Duong dan tuyet doi (tuy chon) neu app khong co trong PATH.
+  app_paths:
+    chrome: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    notepad: "notepad.exe"
+    calculator: "calc.exe"
+  # Fallback phim volume (khi Pycaw loi): moi lan bam ~2% (tuy he thong).
+  volume_key_step_percent: 2
+  # Nghi giua cac lan bam phim de muot, khong giat (sec).
+  volume_key_delay_sec: 0.02
+
+# ---------------------------------------------------------------------
+# TEXT - Clipboard plain text
+# ---------------------------------------------------------------------
+text:
+  # Thoi gian cho clipboard on dinh sau khi Copy (tranh doc nham).
+  clipboard_settle_sec: 0.15
+  # Tu dong chuyen clipboard sang plain text sau khi copy.
+  auto_plain_on_copy: true
+
+# ---------------------------------------------------------------------
+# VOICE - Vosk offline STT
+# ---------------------------------------------------------------------
+voice:
+  enabled: true
+  # Duong dan thu muc model Vosk (da tai san trong models/).
+  # Model tieng Viet LON: vosk-model-vn-0.4 (78MB) - chinh xac hon nhieu.
+  # Nhe hon (kem chinh xac): models/vosk-model-small-vn-0.4 (32MB).
+  # Model Anh (wake word "jarvis"): models/vosk-model-small-en-us-0.15.
+  model_path: "models/vosk-model-vn-0.4"
+  # Wake word kich hoat micro (ho tro nhieu tu, phan cach bang dau phay).
+  # Model Viet khong co tu "jarvis" trong tu vung -> dung "trợ lý".
+  wake_word: "trợ lý"
+  # Thoi gian cho lenh sau khi wake (sec).
+  command_timeout_sec: 6.0
+  # Tan so lay mau micro.
+  sample_rate: 16000
+  # Chi muc micro (-1 = mac dinh cua Windows). Xem README muc 4.
+  device_index: -1
+  # Nguong nang luong de loc khoang lang (RMS).
+  energy_threshold: 300
+  # Nguong so khop mo trigger lenh (0..100). Thap hon = de nhan hon
+  # nhung de nham hon. 70 chiu duoc loi nghe nham 1-2 ky tu / sai dau.
+  fuzzy_threshold: 70
+  # Nguong rieng cho lenh ngan (dan, copy, undo...) - cao hon vi
+  # so khop toan bo cau, tranh kich hoat nham khi noi chuyen.
+  short_threshold: 72
+
+# ---------------------------------------------------------------------
+# WEB AGENT - Playwright (tuy chon, chay ngam)
+# ---------------------------------------------------------------------
+web_agent:
+  enabled: true
+  # Trinh duyet su dung: chromium | firefox | webkit
+  browser: "chromium"
+  # Che do an danh (headless). LAN DAU dat false de dang nhap DeepSeek
+  # thu cong (profile luu lai trong user_data_dir cho cac lan sau).
+  headless: False
+  # URL dich den.
+  target_url: "https://chat.deepseek.com"
+  # Selector o nhap prompt (tuy chinh theo trang).
+  prompt_selector: "textarea#chat-input"
+  # Selector vung chua cau tra loi.
+  response_selector: "div.ds-markdown"
+  # Thoi gian cho phan hoi toi da (sec).
+  response_timeout_sec: 90
+  # Thu muc luu profile trinh duyet (giu dang nhap).
+  user_data_dir: "browser_profile"
+  # Prompt mau cho lenh "xu ly email" / "hoi deepseek": noi dung clipboard
+  # (email/web vua copy) se duoc noi vao sau prompt nay.
+  email_prompt: "Hãy trả lời email này một cách chuyên nghiệp, lịch sự, bằng tiếng Việt. Chỉ trả về nội dung email trả lời, không giải thích thêm."
+
+# ---------------------------------------------------------------------
+# HOTKEYS - Ban do phim tat (tham chieu, dung trong actions)
+# ---------------------------------------------------------------------
+hotkeys:
+  alt_tab: ["alt", "tab"]
+  close_tab: ["ctrl", "w"]
+  undo: ["ctrl", "z"]
+  redo: ["ctrl", "y"]
+  copy: ["ctrl", "c"]
+  paste: ["ctrl", "v"]
+  select_all: ["ctrl", "a"]
+  switch_desktop_left: ["win", "ctrl", "left"]
+  switch_desktop_right: ["win", "ctrl", "right"]
+  play_pause: ["playpause"]
+# =====================================================================
+# GAZE - GazeFlow (iris -> pixel) + dwell click + edge scroll
+# =====================================================================
+gaze:
+  enabled: true
+  fps: 30
+  screen_width: 1920
+  screen_height: 1080
+  # Ten nguoi dung -> file config/calibration_<user>.npz
+  user: "default"
+  calibration_dir: "config"
+  smoothing: true
+  min_ear: 0.10
+  one_euro:
+    min_cutoff: 1.0
+    beta: 0.007
+    d_cutoff: 1.0
+  # Dead-zone: bo qua rung < 8px nhung van emit sau 100ms.
+  dead_zone:
+    px: 8
+    hold_sec: 0.1
+  # Dwell click: giu trong ban kinh R du T.
+  dwell:
+    radius_px: 40
+    dwell_sec: 0.65
+    cooldown_sec: 0.30
+  # Blink click: EAR < threshold giu > min_closed_sec.
+  blink:
+    ear_threshold: 0.20
+    min_closed_sec: 0.35
+    double_gap_sec: 0.60
+  # Edge scroll: mep tren/duoi 10%, ramp 3 -> 15 dong/giay.
+  scroll:
+    zone_ratio: 0.10
+    min_rate: 3
+    max_rate: 15
+    ramp_sec: 1.5
+
+# =====================================================================
+# WAKE WORD - "hey tieu vu" (openWakeWord neu co, fallback Vosk)
+# =====================================================================
+wake_word:
+  engine: "openwakeword"
+  phrase: "hey tieu vu"
+  threshold: 0.5
+  model_paths: []
+
+# =====================================================================
+# NLU - rule-based truoc, LLM (Qwen2.5-0.5B GGUF) fallback sau
+# rules rong = dung bo rule mac dinh trong core/nlu.py
+# =====================================================================
+nlu:
+  enabled: true
+  fuzzy_threshold: 80
+  llm_fallback: false
+  llm_model: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+  rules: []
+
+# =====================================================================
+# AUTOCOMPLETE - n-gram cuc bo, HUD hien 3 goi y, Tab chap nhan
+# =====================================================================
+autocomplete:
+  enabled: true
+  ngram_order: 2
+  max_suggestions: 3
+
+# =====================================================================
+# SNIPPETS - go tat; bo dem 12 ky tu
+# =====================================================================
+snippets:
+  enabled: true
+  buffer_size: 12
+  triggers:
+    ";addr": "123 Nguyễn Trãi, Thanh Xuân, Hà Nội"
+    ";mail": "dinhtanhuy547@gmail.com"
+    ";sig": "Trân trọng,\nĐinh Tấn Huy — Tiểu Vũ"
+    ";date": "{date}"
+    ";thanks": "Cảm ơn bạn đã ủng hộ Tiểu Vũ ❤️"
+
+# =====================================================================
+# UI - HUD / tray (fail-safe neu thieu GUI)
+# =====================================================================
+ui:
+  hud: true
+  tray: true
+
+# =====================================================================
+# TELEMETRY - SQLite do muc do giam su dung ban phim/chuot
+# =====================================================================
+telemetry:
+  enabled: true
+  db_path: "logs/telemetry.db"
