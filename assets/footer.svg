@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" width="1200" height="120">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#00F5A0"/>
+      <stop offset="50%" stop-color="#00D9F5"/>
+      <stop offset="100%" stop-color="#8A2BE2"/>
+    </linearGradient>
+  </defs>
+  <path d="M0,64 C150,110 300,10 450,64 C600,118 750,10 900,64 C1050,118 1150,40 1200,64 L1200,120 L0,120 Z" fill="url(#g)" opacity="0.35"/>
+  <text x="600" y="58" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="26" fill="#00F5A0">
+    Tiểu Vũ — GazeFlow × SePay
+  </text>
+</svg>

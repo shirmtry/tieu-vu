@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/shirmtry/tieu-vu/discussions
+    about: Ask questions and share ideas
+  - name: Donate via SePay
+    url: https://qr.sepay.vn/img?acc=0374756847&bank=MB%20Bank&des=Ung%20ho%20Tieu%20Vu
+    about: Support Tiểu Vũ
