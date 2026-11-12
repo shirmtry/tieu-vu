@@ -112,7 +112,7 @@ state_machine:
     - "ONE_HAND_MOUSE"
   # Trang thai khoi dau.
   initial_state: "IDLE"
-  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS | CODE.
+  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS | CODE | VOICE_CLICK.
   initial_mode: "IDLE"
   # Thoi gian giu chuot trai de chuyen sang Drag (giu 1s = drag).
   drag_hold_sec: 1.0
@@ -351,3 +351,24 @@ ui:
 telemetry:
   enabled: true
   db_path: "logs/telemetry.db"
+
+# =====================================================================
+# VOICE_CLICK - "bam nut X" -> UIA tim element, OCR la fallback (bbox only)
+# =====================================================================
+voice_click:
+  enabled: true
+  uia:
+    # Gioi han duyet cay UIA de giu find() nhanh.
+    max_depth: 10
+    max_nodes: 5000
+    # Diem fuzzy toi thieu (0..100) khi so khop ten element.
+    min_score: 70
+  ocr_fallback:
+    enabled: true
+    # Bo qua ket qua OCR co do tin cay thap.
+    min_conf: 0.6
+    min_score: 70
+  privacy:
+    # Khong ghi ten element / text OCR vao telemetry.
+    log_element_name: false
+
