@@ -146,7 +146,7 @@ def test_two_hand_volume_excludes_mouse(cfg):
     assert sm.state == State.VOLUME
 
 
-def test_two_hand_copy_and_open(cfg):
+def test_two_hand_copy_and_open_hold(cfg):
     sm = StateMachine(cfg)
     p1 = make_hand(pinch="index")
     p2 = make_hand(pinch="index")
@@ -159,7 +159,10 @@ def test_two_hand_copy_and_open(cfg):
     o2 = make_hand(extended=("index", "middle", "ring", "pinky"), thumb=True)
     o2.points[:, 0] += 0.3
     alln = [n for ev in run(sm, [frame([o1, o2])] * 5) for n in names(ev)]
-    assert "open_app" in alln
+    # Xoe 2 tay khong con mo app; chi click sau khi giu du 5s (xem
+    # tests/test_gesture_click.py).
+    assert "open_app" not in alln
+    assert "gaze_click" not in alln
 
 
 def test_idle_when_no_hands(cfg):
