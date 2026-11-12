@@ -28,6 +28,7 @@ from typing import List, Optional
 import cv2
 import yaml
 
+from actions.coder_actions import CoderActions
 from actions.mouse_control import MouseController
 from actions.system_control import SystemController
 from actions.text_control import TextController
@@ -92,13 +93,14 @@ class ActionDispatcher:
     def __init__(self, config: dict, mouse: MouseController,
                  system: SystemController, text: TextController,
                  web: WebAgent, telemetry: Optional[Telemetry] = None,
-                 ui_hooks: Optional[dict] = None, tts=None):
+                 ui_hooks: Optional[dict] = None, tts=None, coder=None):
         self.mouse = mouse
         self.system = system
         self.text = text
         self.web = web
         self.telemetry = telemetry
         self.tts = tts
+        self.coder = coder
         hooks = ui_hooks or {}
         self._table = {
             "mouse_move": lambda p: self.mouse.move(p["x"], p["y"]),
@@ -131,7 +133,34 @@ class ActionDispatcher:
             "wake_toggle": lambda p: log.info("wake_toggle (khong co hanh dong)."),
             "speak": lambda p: self._speak(p.get("text", ""),
                                            bool(p.get("blocking", False))),
+            # AI coder mode (Phase 4).
+            "create_file": lambda p: self._coder_op(
+                "create_file", p["path"], p.get("content", "")),
+            "run_command": lambda p: self._coder_op(
+                "run_command_async", p["cmd"], p.get("cwd", ".")),
+            "git_commit": lambda p: self._speak(
+                self._coder_op("git_commit", p["message"]) or ""),
+            "search_code": lambda p: self._speak_search(
+                self._coder_op("search_code", p["query"])),
+            "explain_code": lambda p: self._coder_op(
+                "explain_code_async", p["file"], p.get("lines")),
+            "delegate_to_coder": lambda p: self._coder_op(
+                "delegate_async", p["prompt"]),
         }
+
+    def _coder_op(self, method: str, *args, **kwargs):
+        if self.coder is None:
+            log.warning("CoderActions chua san sang (%s).", method)
+            return None
+        return getattr(self.coder, method)(*args, **kwargs)
+
+    def _speak_search(self, results):
+        count = len(results or [])
+        if count:
+            first = results[0] if isinstance(results[0], str) else ""
+            self._speak(f"Tìm thấy {count} kết quả. {first}"[:400])
+        else:
+            self._speak("Không tìm thấy kết quả nào.")
 
     def _speak(self, text: str, blocking: bool = False):
         if self.tts is None:
@@ -286,6 +315,7 @@ class App:
         self.text = TextController(config)
         self.web = WebAgent(config, self.text, event_queue=self.action_queue)
         self.tts = VieNeuTTS(config)
+        self.coder = CoderActions(config, event_queue=self.action_queue, tts=self.tts)
         tel_cfg = config.get("telemetry", {})
         self.telemetry = (Telemetry(tel_cfg.get("db_path", "logs/telemetry.db"))
                           if tel_cfg.get("enabled", True) else None)
@@ -295,13 +325,15 @@ class App:
         }
         self.dispatcher = ActionDispatcher(
             config, self.mouse, self.system, self.text, self.web,
-            telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts)
+            telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts,
+            coder=self.coder)
         self.worker = ActionWorker(self.action_queue, self.dispatcher, self.pause_flag)
 
         self.vision = VisionEngine(config)
         self.sm = StateMachine(config)
         self.voice = VoiceEngine(config, self.action_queue)
         self.nlu = NLU(config)
+        self.coder.coder_nlu = getattr(self.nlu, "coder", None)
         self.voice.nlu = self.nlu
         self.voice.gate = lambda: self.sm.mode.accepts_voice
         self.voice.on_wake = self._on_voice_wake
