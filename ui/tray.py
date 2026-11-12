@@ -30,20 +30,43 @@ class TrayIcon:
                  on_calibrate: Callable[[], None],
                  on_donate: Callable[[], None],
                  on_quit: Callable[[], None],
+                 mode_callback: Optional[Callable[[str], None]] = None,
+                 get_current_mode: Optional[Callable[[], str]] = None,
                  title: str = "Tiểu Vũ"):
         self.on_pause = on_pause
         self.on_calibrate = on_calibrate
         self.on_donate = on_donate
         self.on_quit = on_quit
+        self.mode_callback = mode_callback
+        self.get_current_mode = get_current_mode or (lambda: "IDLE")
         self.title = title
         self._icon = None
         self._thread: Optional[threading.Thread] = None
 
     # ------------------------------------------------------------------
+    def _set_mode(self, name: str):
+        if self.mode_callback is None:
+            return
+        try:
+            self.mode_callback(name)
+        except Exception as exc:
+            log.warning("Tray doi mode '%s' loi: %s", name, exc)
+
     def _build_menu(self):
         import pystray
 
         return pystray.Menu(
+            pystray.MenuItem(
+                lambda item: f"Chế độ: {self.get_current_mode()}",
+                None, enabled=False),
+            pystray.MenuItem("💤  IDLE (Tắt AI)", lambda: self._set_mode("IDLE")),
+            pystray.MenuItem("👁  GAZE (Nhìn bằng mắt)",
+                             lambda: self._set_mode("GAZE")),
+            pystray.MenuItem("🎯  VOICE_CLICK (Nói để click)",
+                             lambda: self._set_mode("VOICE_CLICK")),
+            pystray.MenuItem("💻  CODE (Voice Coder)",
+                             lambda: self._set_mode("CODE")),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("⏸  Tạm dừng / Tiếp tục", lambda: self.on_pause()),
             pystray.MenuItem("🎯  Hiệu chuẩn gaze", lambda: self.on_calibrate()),
             pystray.MenuItem("❤️  Donate — SePay VietQR", lambda: self.on_donate()),
@@ -71,6 +94,17 @@ class TrayIcon:
         self._thread = threading.Thread(target=self._run, name="Tray", daemon=True)
         self._thread.start()
         return True
+
+    def update_title(self, title: str):
+        """Cap nhat tooltip (vi du 'Tiểu Vũ - VOICE_CLICK')."""
+        self.title = title
+        if self._icon is None:
+            return
+        try:
+            self._icon.title = title
+            self._icon.update_menu()
+        except Exception:
+            pass
 
     def notify(self, message: str, title: Optional[str] = None):
         if self._icon is None:

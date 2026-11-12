@@ -61,8 +61,9 @@ DEFAULT_RULES = [
      "slot": "rest", "slot_key": "text", "confidence": 0.85},
     {"name": "click_target", "patterns": [
         "bấm nút", "bấm vào nút", "nhấn nút", "nhấn vào nút", "chọn nút",
-        "click nút", "bấm", "nhấn", "click", "mở"],
-     "slot": "rest", "slot_key": "target", "confidence": 0.85},
+        "click nút", "bấm", "nhấn", "click", "chọn", "mở"],
+     "slot": "rest", "slot_key": "target", "strip_prefix": ["nút"],
+     "confidence": 0.85},
     {"name": "click", "patterns": ["bấm chuột", "click", "nhấp"],
      "confidence": 0.9},
     {"name": "scroll", "patterns": ["cuộn lên", "cuộn xuống", "scroll up",
@@ -100,6 +101,13 @@ class RuleEngine:
                     normalized_words = normalize(text).split()
                     pat_words = pat.split()
                     rest = " ".join(normalized_words[len(pat_words):]).strip()
+                    for prefix in (fold(p) for p in rule.get("strip_prefix", [])):
+                        if rest == prefix:
+                            rest = ""
+                            break
+                        if rest.startswith(prefix + " "):
+                            rest = rest[len(prefix) + 1:].strip()
+                            break
                     payload[rule.get("slot_key", "text")] = rest
                     if not rest:
                         continue
