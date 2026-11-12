@@ -1,6 +1,9 @@
 name: canary
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/voice-click-*"]
 
 jobs:
   soak:
