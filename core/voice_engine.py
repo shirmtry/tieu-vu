@@ -120,6 +120,14 @@ class VoiceEngine(threading.Thread):
         self.fuzzy_threshold = float(self.cfg.get("fuzzy_threshold", 70))
         self.short_threshold = float(self.cfg.get("short_threshold", 72))
         self.app_paths = (config.get("system", {}).get("app_paths", {}) or {})
+
+        # --- Hybrid STT: Vosk wake-word + PhoWhisper transcribe ---
+        stt_cfg = self.cfg.get("stt", {}) or {}
+        self.stt_engine = str(stt_cfg.get("engine", "vosk")).lower()
+        self.phowhisper = self._build_phowhisper(stt_cfg)
+        self._audio_buffer = bytearray()
+        self._max_buffer_bytes = self.sample_rate * 2 * 30  # toi da 30s PCM16
+
         self.last_transcript: str = ""       # phuc vu HUD
         self.listening_for_command = False
         # Callback/Hook (main.py gan vao):
@@ -131,6 +139,64 @@ class VoiceEngine(threading.Thread):
     # ------------------------------------------------------------------
     def stop(self):
         self.stop_event.set()
+
+    # ------------------------------------------------------------------
+    def _build_phowhisper(self, stt_cfg: dict):
+        """Tao PhoWhisperSTT neu config bat; loi -> None (fallback Vosk)."""
+        if self.stt_engine not in ("phowhisper", "hybrid"):
+            return None
+        try:
+            from .voice.stt_phowhisper import PhoWhisperSTT
+
+            stt = PhoWhisperSTT(
+                model_path=str(stt_cfg.get("phowhisper_model",
+                                           "models/phowhisper-small")),
+                device=str(stt_cfg.get("phowhisper_device", "cpu")),
+                compute_type=str(stt_cfg.get("phowhisper_compute_type", "int8")),
+            )
+            log.info("STT engine=%s (PhoWhisper du phong).", self.stt_engine)
+            return stt
+        except Exception as exc:
+            log.warning("Khong khoi tao duoc PhoWhisper (%s) -> Vosk.", exc)
+            return None
+
+    # ------------------------------------------------------------------
+    def _start_audio_buffer(self):
+        self._audio_buffer = bytearray()
+
+    def _buffer_audio(self, data: bytes):
+        if len(self._audio_buffer) < self._max_buffer_bytes:
+            self._audio_buffer.extend(data[: self._max_buffer_bytes - len(self._audio_buffer)])
+
+    def _finalize_transcript(self, vosk_text: str) -> str:
+        """Uu tien PhoWhisper tren buffer; loi/rong/ngan -> giu Vosk."""
+        if self.phowhisper is None:
+            return vosk_text
+        # Buffer qua ngan (< 0.3s) thi khong du tin cay de transcribe.
+        if len(self._audio_buffer) < self.sample_rate * 2 * 0.3:
+            return vosk_text
+        from .voice.stt_phowhisper import pcm16_to_float32
+
+        audio = pcm16_to_float32(bytes(self._audio_buffer))
+        text = self.phowhisper.transcribe(audio, self.sample_rate)
+        if not text:
+            return vosk_text
+        log.info("STT so sanh: PhoWhisper='%s' | Vosk='%s'", text, vosk_text)
+        return text
+
+    def _flush_command(self, vosk_text: str):
+        """Chot transcript (hybrid), day ActionEvent neu mode cho phep."""
+        text = self._finalize_transcript(vosk_text).strip()
+        if not text:
+            return
+        self.last_transcript = text
+        log.info("Lenh giong noi: '%s'", text)
+        allowed = self.gate is None or self.gate()
+        if not allowed:
+            log.info("Bo qua lenh: mode hien tai khong nhan voice.")
+            return
+        for ev in self._to_events(text):
+            self.event_queue.put(ev)
 
     # ------------------------------------------------------------------
     def run(self):
@@ -189,6 +255,7 @@ class VoiceEngine(threading.Thread):
                     # Het thoi gian cho lenh -> quay ve che do wake.
                     if self.listening_for_command and time.time() > deadline:
                         log.info("Het gio cho lenh, quay ve wake word.")
+                        self._flush_command("")
                         self._end_command_mode(cmd_rec)
                     continue
 
@@ -201,20 +268,14 @@ class VoiceEngine(threading.Thread):
                             self._enter_command_mode(cmd_rec)
                             deadline = time.time() + self.command_timeout
                     else:
+                        self._buffer_audio(data)
                         if time.time() > deadline:
+                            self._flush_command("")
                             self._end_command_mode(cmd_rec)
                             continue
                         if cmd_rec.AcceptWaveform(data):
                             text = json.loads(cmd_rec.Result()).get("text", "").strip()
-                            if text:
-                                self.last_transcript = text
-                                log.info("Lenh giong noi: '%s'", text)
-                                allowed = self.gate is None or self.gate()
-                                if allowed:
-                                    for ev in self._to_events(text):
-                                        self.event_queue.put(ev)
-                                else:
-                                    log.info("Bo qua lenh: mode hien tai khong nhan voice.")
+                            self._flush_command(text)
                             # Nghe xong mot lenh -> quay ve wake (kem beep).
                             self._end_command_mode(cmd_rec)
                 except Exception as exc:
@@ -233,6 +294,7 @@ class VoiceEngine(threading.Thread):
     def _enter_command_mode(self, cmd_rec):
         self.listening_for_command = True
         cmd_rec.Reset()
+        self._start_audio_buffer()
         log.info("Da wake! Dang nghe lenh...")
         # Beep di len: bao hieu BAT DAU ghi am lenh.
         self._beep(660, 90)

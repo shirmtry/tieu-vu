@@ -24,6 +24,8 @@ psutil>=5.9.0
 vosk>=0.3.45
 sounddevice>=0.4.6
 rapidfuzz>=3.0
+# PhoWhisper-small transcription (Phase 1). Thieu package van chay Vosk.
+faster-whisper>=1.0.0
 
 # --- Clipboard / config / UI ---
 pyperclip>=1.8.2

@@ -177,6 +177,14 @@ voice:
   command_timeout_sec: 6.0
   # Tan so lay mau micro.
   sample_rate: 16000
+  # Hybrid STT: Vosk bat wake-word (streaming, do tre thap), PhoWhisper
+  # transcribe lai buffer audio sau khi wake (chinh xac hon, code-switch).
+  stt:
+    engine: "hybrid"  # vosk | phowhisper | hybrid
+    # Thu muc model CTranslate2 cua vinai/PhoWhisper-small (xem SOLUTION.md).
+    phowhisper_model: "models/phowhisper-small"
+    phowhisper_device: "cpu"        # cpu | cuda
+    phowhisper_compute_type: "int8" # int8 | float16 | float32
   # Chi muc micro (-1 = mac dinh cua Windows). Xem README muc 4.
   device_index: -1
   # Nguong nang luong de loc khoang lang (RMS).
