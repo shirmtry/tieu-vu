@@ -112,7 +112,7 @@ state_machine:
     - "ONE_HAND_MOUSE"
   # Trang thai khoi dau.
   initial_state: "IDLE"
-  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS.
+  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS | CODE.
   initial_mode: "IDLE"
   # Thoi gian giu chuot trai de chuyen sang Drag (giu 1s = drag).
   drag_hold_sec: 1.0

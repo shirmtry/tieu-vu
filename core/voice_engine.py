@@ -132,6 +132,8 @@ class VoiceEngine(threading.Thread):
         self.listening_for_command = False
         # Callback/Hook (main.py gan vao):
         self.nlu = None                      # core.nlu.NLU | None
+        self.coder_nlu = None                # core.nlu_coder.CoderNLU | None
+        self.code_mode: Optional[Callable[[], bool]] = None
         self.gate: Optional[Callable[[], bool]] = None
         self.on_wake: Optional[Callable[[], bool]] = None
         self.on_command_done: Optional[Callable[[], None]] = None
@@ -314,7 +316,17 @@ class VoiceEngine(threading.Thread):
 
     # ------------------------------------------------------------------
     def _to_events(self, text: str) -> List[ActionEvent]:
-        """NLU rule/LLM truoc; neu khong hieu thi dung parser cu."""
+        """Route theo mode: CODE -> CoderNLU, con lai -> rule/LLM."""
+        if (self.code_mode is not None and self.coder_nlu is not None
+                and self.code_mode()):
+            try:
+                event = self.coder_nlu.parse(text)
+            except Exception:
+                log.debug("CoderNLU loi", exc_info=True)
+                event = None
+            if event is not None:
+                return [event]
+            log.info("CoderNLU khong hieu '%s' -> fallback rule-based.", text)
         if self.nlu is not None:
             try:
                 intents = self.nlu.parse(text)

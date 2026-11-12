@@ -39,7 +39,7 @@ from core.gaze_estimator import GazeEstimator, head_pitch_ok
 from core.nlu import NLU
 from core.scroll_engine import EdgeScrollEngine
 from core.snippet_engine import SnippetEngine, SnippetListener
-from core.state_machine import ActionEvent, Mode, StateMachine
+from core.state_machine import ActionEvent, Mode, StateMachine, done_transition, wake_transition
 from core.telemetry import Telemetry
 from core.vision_engine import LEFT_IRIS, RIGHT_IRIS, VisionEngine
 from core.voice.tts_vieneu import VieNeuTTS
@@ -335,6 +335,8 @@ class App:
         self.nlu = NLU(config)
         self.coder.coder_nlu = getattr(self.nlu, "coder", None)
         self.voice.nlu = self.nlu
+        self.voice.coder_nlu = self.coder.coder_nlu
+        self.voice.code_mode = lambda: self.sm.mode is Mode.CODE
         self.voice.gate = lambda: self.sm.mode.accepts_voice
         self.voice.on_wake = self._on_voice_wake
         self.voice.on_command_done = self._on_voice_done
@@ -403,18 +405,18 @@ class App:
         self.set_mode(target)
 
     def _on_voice_wake(self) -> bool:
-        if self.sm.mode in (Mode.VK, Mode.FOCUS):
-            return False
-        if self.sm.mode is not Mode.VOICE:
-            self._prev_mode = self.sm.mode
-        self.set_mode(Mode.VOICE)
+        target = wake_transition(self.sm.mode)
+        if target is None:
+            # VK/FOCUS tu choi; VOICE/CODE giu nguyen mode.
+            return self.sm.mode in (Mode.VOICE, Mode.CODE)
+        self._prev_mode = self.sm.mode
+        self.set_mode(target)
         return True
 
     def _on_voice_done(self):
-        if self.sm.mode is Mode.VOICE:
-            restore = (self._prev_mode
-                       if self._prev_mode not in (Mode.VOICE, Mode.VK) else Mode.GAZE)
-            self.set_mode(restore)
+        target = done_transition(self.sm.mode, self._prev_mode)
+        if target is not None:
+            self.set_mode(target)
 
     def toggle_pause(self):
         if self.pause_flag.is_set():
@@ -584,11 +586,12 @@ class App:
                 "<ctrl>+<alt>+v": lambda: self.toggle_mode(Mode.VOICE),
                 "<ctrl>+<alt>+k": lambda: self.toggle_mode(Mode.VK),
                 "<ctrl>+<alt>+f": lambda: self.toggle_mode(Mode.FOCUS),
+                "<ctrl>+<alt>+c": lambda: self.toggle_mode(Mode.CODE),
                 "<ctrl>+<alt>+p": self.toggle_pause,
                 "<ctrl>+<alt>+q": self.quit,
             })
             self._hotkey_listener.start()
-            log.info("Hotkeys: Ctrl+Alt+G/V/K/F mode | P pause | Q quit")
+            log.info("Hotkeys: Ctrl+Alt+G/V/K/F/C mode | P pause | Q quit")
         except Exception as exc:
             log.warning("Khong khoi tao duoc hotkey: %s", exc)
 
