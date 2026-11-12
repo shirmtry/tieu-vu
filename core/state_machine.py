@@ -249,6 +249,8 @@ class StateMachine:
             sm.get("cooldowns", {}),
         )
         self.drag_hold_sec = float(sm.get("drag_hold_sec", 1.0))
+        # Giu 2 ban tay xoe (5 ngon) du lau -> click tai diem mat dang nhin.
+        self.two_hand_click_hold = float(sm.get("two_hand_click_hold_sec", 5.0))
         self.priority = sm.get("priority",
                                ["TWO_HAND_SYSTEM", "FACE_SCROLL", "ONE_HAND_MOUSE"])
 
@@ -285,6 +287,8 @@ class StateMachine:
         self._v_scroll_last_y: Optional[float] = None
         self._swipe_one = SwipeDetector(*self.swipe_cfg)
         self._swipe_two = SwipeDetector(*self.swipe_cfg)
+        self._two_open_since: Optional[float] = None
+        self._two_open_fired = False
         self.last_action: str = ""              # phuc vu HUD
 
     # ------------------------------------------------------------------
@@ -383,6 +387,8 @@ class StateMachine:
         if new_mode is not self.mode:
             log.info("Che do: %s -> %s", self.mode.value, new_mode.value)
         self.mode = new_mode
+        self._two_open_since = None
+        self._two_open_fired = False
         if not new_mode.accepts_gestures:
             # Nha moi trang thai lien tuc de khong ket chuot khi doi mode.
             self._pinch_active = False
@@ -409,6 +415,10 @@ class StateMachine:
         self._mouse_active = False
         hands = [self._classify_hand(h) for h in frame.hands]
         n = len(hands)
+        if n < 2:
+            # Mat 1 tay -> huy bo dem giu 2 tay, phai giu lai tu dau.
+            self._two_open_since = None
+            self._two_open_fired = False
 
         # Cap nhat stability cho tat ca cu chi ung vien, tinh rising edge
         # tap trung de tranh trang thai cu khi mot kenh khong duoc danh gia.
@@ -512,12 +522,20 @@ class StateMachine:
                 ev.append(ActionEvent("volume", {"level": level}))
             return ev
 
-        # Mo app mac dinh: xoe ca hai ban tay.
-        if self._rising("two_open"):
+        # Giu hai ban tay xoe (5 ngon) du lau -> click tai diem mat nhin.
+        # Chi phat 1 lan moi lan giu; tha tay hoac doi mode se reset.
+        if self.stability.is_stable("two_open"):
             self._transition(State.WINDOW_MGMT)
-            if self.cooldown.allow("open_app", now):
-                ev.append(ActionEvent("open_app", {}))
+            if self._two_open_since is None:
+                self._two_open_since = now
+                self._two_open_fired = False
+            if (not self._two_open_fired
+                    and now - self._two_open_since >= self.two_hand_click_hold):
+                self._two_open_fired = True
+                ev.append(ActionEvent("gaze_click", {}))
             return ev
+        self._two_open_since = None
+        self._two_open_fired = False
 
         # Copy plain text: hai tay cung pinch va dua lai gan nhau.
         if self._rising("two_copy"):

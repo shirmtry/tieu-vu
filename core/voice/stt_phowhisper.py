@@ -41,12 +41,14 @@ class PhoWhisperSTT:
     """Wrapper faster-whisper cho model PhoWhisper-small (tieng Viet)."""
 
     def __init__(
-        self, model_path: str, device: str = "cpu", compute_type: str = "int8", language: str = "vi"
+        self, model_path: str, device: str = "cpu", compute_type: str = "int8",
+        language: str = "vi", vad_filter: bool = True
     ):
         self.model_path = str(model_path)
         self.device = str(device)
         self.compute_type = str(compute_type)
         self.language = str(language)
+        self.vad_filter = bool(vad_filter)
         self._model = None
         self._tried = False
 
@@ -107,7 +109,7 @@ class PhoWhisperSTT:
                 return ""
             audio = _resample(audio, int(sr))
             segments, _info = model.transcribe(
-                audio, language=self.language, beam_size=5, vad_filter=True
+                audio, language=self.language, beam_size=5, vad_filter=self.vad_filter
             )
             text = " ".join(str(seg.text).strip() for seg in segments).strip()
             return text

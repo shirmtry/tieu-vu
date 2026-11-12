@@ -11,9 +11,12 @@ import json
 import logging
 import os
 import queue
+import re
 import threading
 import time
 from typing import Callable, List, Optional, Tuple
+
+import numpy as np
 
 from .state_machine import ActionEvent
 from .text_utils import fold as _fold
@@ -38,6 +41,21 @@ except ImportError:  # pragma: no cover - fallback khi thieu rapidfuzz
     def _sim(a: str, b: str) -> float:
         return difflib.SequenceMatcher(None, a, b).ratio() * 100.0
 
+
+def _wake_norm(text: str) -> str:
+    """Fold + dong nhat y/i cuoi am tiet ("lý" ~ "lí") cho wake word."""
+    return " ".join(w[:-1] + "i" if w.endswith("y") else w
+                    for w in _fold(text).split())
+
+
+# Vosk/PhoWhisper hay chen tu dem ("da", "u", "a"...) do TTS bao wake
+# hoac nguoi dung buot mieng; cat truoc khi parse lenh.
+_FILLER_PREFIX = re.compile(r"^(?:(?:dạ|da|vâng|vang|ừ|u|à|a|um)\s+)+",
+                            re.IGNORECASE)
+
+
+def strip_filler(text: str) -> str:
+    return _FILLER_PREFIX.sub("", str(text or "").strip())
 
 
 # ---------------------------------------------------------------------
@@ -133,6 +151,7 @@ class VoiceEngine(threading.Thread):
         # Callback/Hook (main.py gan vao):
         self.nlu = None                      # core.nlu.NLU | None
         self.coder_nlu = None                # core.nlu_coder.CoderNLU | None
+        self.tts = None                      # VieNeuTTS | None (bao "Da" khi wake)
         self.code_mode: Optional[Callable[[], bool]] = None
         self.gate: Optional[Callable[[], bool]] = None
         self.on_wake: Optional[Callable[[], bool]] = None
@@ -155,6 +174,7 @@ class VoiceEngine(threading.Thread):
                                            "models/phowhisper-small")),
                 device=str(stt_cfg.get("phowhisper_device", "cpu")),
                 compute_type=str(stt_cfg.get("phowhisper_compute_type", "int8")),
+                vad_filter=bool(stt_cfg.get("vad_filter", True)),
             )
             log.info("STT engine=%s (PhoWhisper du phong).", self.stt_engine)
             return stt
@@ -188,7 +208,7 @@ class VoiceEngine(threading.Thread):
 
     def _flush_command(self, vosk_text: str):
         """Chot transcript (hybrid), day ActionEvent neu mode cho phep."""
-        text = self._finalize_transcript(vosk_text).strip()
+        text = strip_filler(self._finalize_transcript(vosk_text).strip())
         if not text:
             return
         self.last_transcript = text
@@ -220,10 +240,9 @@ class VoiceEngine(threading.Thread):
         try:
             vosk.SetLogLevel(-1)
             model = vosk.Model(self.model_path)
-            # Grammar chi chua wake word + [unk]: nhan dien wake nhanh, it CPU.
-            wake_rec = vosk.KaldiRecognizer(
-                model, self.sample_rate,
-                json.dumps(self.wake_words + ["[unk]"], ensure_ascii=False))
+            # Wake recognizer tu do (khong grammar): grammar chi nhan tu co
+            # trong tu vung Vosk, cum custom se lam recognizer fail.
+            wake_rec = vosk.KaldiRecognizer(model, self.sample_rate)
             # Recognizer tu do cho lenh sau khi wake.
             cmd_rec = vosk.KaldiRecognizer(model, self.sample_rate)
         except Exception as exc:
@@ -235,7 +254,13 @@ class VoiceEngine(threading.Thread):
         def _callback(indata, frames, time_info, status):
             if status:
                 log.debug("sounddevice status: %s", status)
-            audio_q.put(bytes(indata))
+            data = bytes(indata)
+            if log.isEnabledFor(logging.DEBUG) and data:
+                samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                rms = float(np.sqrt(np.mean(samples ** 2)))
+                if rms > 50:  # chi log khi micro co tieng that
+                    log.debug("Mic RMS: %.0f", rms)
+            audio_q.put(data)
 
         device = self.cfg.get("device_index", -1)
         device = None if device is None or int(device) < 0 else int(device)
@@ -286,18 +311,53 @@ class VoiceEngine(threading.Thread):
 
     # ------------------------------------------------------------------
     def _detect_wake(self, rec, data: bytes) -> bool:
-        """Kiem tra wake word trong ca partial lan final result."""
+        """Kiem tra wake word trong ca partial lan final result (fuzzy)."""
         if rec.AcceptWaveform(data):
-            text = json.loads(rec.Result()).get("text", "").lower()
-            return any(w in text for w in self.wake_words)
-        partial = json.loads(rec.PartialResult()).get("partial", "").lower()
-        return any(w in partial for w in self.wake_words)
+            text = json.loads(rec.Result()).get("text", "")
+        else:
+            text = json.loads(rec.PartialResult()).get("partial", "")
+        return self._wake_hit(text)
+
+    def _wake_hit(self, text: str) -> bool:
+        """So khop wake word sau khi bo dau, chiu duoc nghe nham am tiet.
+
+        Am tiet cuoi phai giong >= 85 (ly/li), am tiet truoc chap nhan moi
+        bien the vi Vosk hay nghe lech ("trợ" -> "cho"/"chi"). Nho vay
+        "cho ly", "chi ly" van khop, con "tra loi" (li~loi = 80),
+        "a lo", "mo youtube" thi khong.
+        """
+        norm = _wake_norm(text)
+        if not norm:
+            return False
+        words = norm.split()
+        for w in self.wake_words:
+            wf = _wake_norm(w)
+            if not wf:
+                continue
+            if wf in norm:
+                return True
+            target = wf.split()
+            last = target[-1]
+            for size in (len(target), len(target) + 1):
+                if size > len(words):
+                    continue
+                for i in range(0, len(words) - size + 1):
+                    if _sim(last, words[i + size - 1]) >= 85.0:
+                        return True
+        return False
 
     def _enter_command_mode(self, cmd_rec):
         self.listening_for_command = True
         cmd_rec.Reset()
-        self._start_audio_buffer()
         log.info("Da wake! Dang nghe lenh...")
+        # Bao "Da" khong block: TTS chay trong thread rieng, khong treo
+        # vong nghe. Tieng "Da" lot vao buffer se bi strip_filler cat bo.
+        if self.tts is not None:
+            try:
+                self.tts.speak("Dạ", blocking=False)
+            except Exception:
+                log.debug("TTS wake loi", exc_info=True)
+        self._start_audio_buffer()
         # Beep di len: bao hieu BAT DAU ghi am lenh.
         self._beep(660, 90)
         self._beep(880, 90)
