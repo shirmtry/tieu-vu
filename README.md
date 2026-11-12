@@ -47,6 +47,7 @@ Everything runs **offline on CPU** — no cloud, no telemetry sent out, no GPU r
 | **Virtual keyboard** | Transparent Tkinter overlay, dwell-select keys | ✅ |
 | **Voice-to-text** | Vosk streaming (vi + en), insert via clipboard | ✅ |
 | **Voice commands** | Fuzzy Vietnamese/English rule-based NLU | ✅ |
+| **Voice-click** | "bấm nút X" → UIA/OCR finds & clicks | ✅ |
 | **Hybrid STT** | Vosk wake-word + PhoWhisper-small transcription (optional) | ✅ |
 | **Vietnamese TTS** | VieNeu-TTS / pyttsx3 fallback, Việt–Anh code-switching | ✅ |
 | **AI coder mode** | Qwen2.5-Coder (Ollama) tool-calling + coding actions | ✅ |
@@ -55,7 +56,7 @@ Everything runs **offline on CPU** — no cloud, no telemetry sent out, no GPU r
 | **Wake word** | Vosk phrase matcher; openWakeWord optional | ✅ |
 | **Snippets** | `;addr` → expand full text from config | ✅ |
 | **Autocomplete** | Local n-gram, 3 suggestions, Tab accepts | ✅ |
-| **Mode exclusivity** | IDLE / GAZE / VOICE / VK / FOCUS / CODE, one at a time | ✅ |
+| **Mode exclusivity** | IDLE / GAZE / VOICE / VK / FOCUS / CODE / VOICE_CLICK, one at a time | ✅ |
 | **Telemetry** | Local SQLite action log + stats | ✅ |
 | **Donate** | SePay VietQR in-app + FastAPI webhook | ✅ |
 
@@ -119,6 +120,12 @@ source .venv/bin/activate       # Linux/macOS
 pip install -r requirements.txt
 ```
 
+Or run the Windows one-click installer (venv + deps + Vosk model + startup):
+
+```bat
+install.bat
+```
+
 ### Download an ASR model (one-time)
 
 Vosk models are not committed. Download a Vietnamese model from
@@ -157,6 +164,8 @@ python main.py --no-preview
 | `Ctrl+Alt+V` | Toggle **VOICE** mode |
 | `Ctrl+Alt+K` | Toggle **VK** mode (virtual keyboard) |
 | `Ctrl+Alt+F` | Toggle **FOCUS** mode (gestures blocked) |
+| `Ctrl+Alt+C` | Toggle **CODE** mode (voice → coder NLU) |
+| `Ctrl+Alt+O` | Toggle **VOICE_CLICK** mode (voice → find & click UI element) |
 | `Ctrl+Alt+P` | Pause / resume all actions |
 | `Ctrl+Alt+Q` | Quit |
 | `Esc` | Quit (when the preview window is focused) |
@@ -178,6 +187,10 @@ Right-click the tray icon → *Tạm dừng / Tiếp tục · Hiệu chuẩn gaz
 
 **Open a site by voice**
 > "mở youtube" → NLU matches `open_url` → YouTube opens in the browser.
+
+**Click any button by voice**
+> `Ctrl+Alt+O`, then "bấm nút Đăng nhập" → UIA finds the element (OCR fallback),
+> the cursor moves to its center and clicks. See [`docs/VOICE_CLICK.md`](./docs/VOICE_CLICK.md).
 
 **Expand a snippet**
 > Type `;addr` → expands to your saved address from `config.yaml`.
@@ -228,14 +241,17 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full design.
 tieu-vu/
 ├── core/                  # perception + state (vision, gaze, voice, NLU)
 │   ├── voice/             # PhoWhisper STT + VieNeu TTS engines
+│   ├── finder/            # voice-click: UIA primary + OCR fallback
 │   ├── nlu_coder.py       # Qwen2.5-Coder tool-calling (Ollama)
 │   └── coder_backend.py   # OpenCode / Aider delegate backends
 ├── actions/               # OS control (mouse, text, system, web, coder)
 ├── ui/                    # Tkinter HUD, virtual keyboard, tray, donate window
 ├── server/                # FastAPI webhook for SePay donate
+├── scripts/               # cleanup, auto-dev, Windows startup installers
 ├── models/                # Vosk / PhoWhisper models (not committed)
 ├── tests/                 # pytest unit + integration
-├── docs/                  # ARCHITECTURE, CALIBRATION, DONATE
+├── docs/                  # ARCHITECTURE, CALIBRATION, DONATE, VOICE_CLICK
+├── install.bat            # Windows one-click installer
 ├── config.yaml            # commands, snippets, dwell/gaze/voice/coder parameters
 ├── main.py                # entry point
 └── requirements.txt

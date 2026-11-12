@@ -209,3 +209,60 @@ mic) nên chạy offline, không phụ thuộc model hay mạng.
 - CoderNLU được bật mặc định; nếu Ollama không chạy, lệnh không hiểu sẽ chờ
   tối đa `timeout_sec` trước khi bỏ cuộc. Có thể đặt `enabled: false` để tắt.
 - Delegate stream log từng dòng; TTS chỉ đọc kết quả cuối để tránh nhiễu.
+
+---
+
+## 9. Phase 8 — Voice Click
+
+### Trước / Sau
+
+| | Trước | Sau |
+|---|---|---|
+| Bấm UI bằng giọng nói | Không có | `VOICE_CLICK` + `click_target` |
+| Tìm element | — | UIA primary, OCR fallback |
+| Privacy | — | Không lưu screenshot / OCR text / element name |
+| Điều khiển | Chuột/gaze/gesture | Thêm giọng nói trên element |
+
+### Luồng
+
+```
+"bấm nút Đăng nhập"
+  → NLU rule `click_target` (slot target)
+  → ActionEvent → action_queue → ActionWorker
+  → HybridFinder: UiaFinder.find_by_name() → nếu rỗng → OcrFinder.find_by_text()
+  → click_found(): move_screen(center bbox) + left_click()
+  → TTS "Đã bấm button."
+```
+
+### File mới
+
+- `core/finder/uia_finder.py` — UIA walk (depth/node limits), role + bbox.
+- `core/finder/ocr_finder.py` — RapidOCR over in-memory `mss` grab, bbox only.
+- `core/finder/hybrid.py` — UIA trước, OCR sau, cấu hình từ `voice_click`.
+- `core/finder/actions.py` — `click_found`, `telemetry_fields`.
+- `tests/test_finder_{uia,ocr,hybrid}.py`, `test_integration_voice_click.py`,
+  `test_perf_bench.py`.
+- `docs/VOICE_CLICK.md`.
+
+### Config
+
+`config.yaml → voice_click` (enabled, uia.max_depth/max_nodes/min_score,
+ocr_fallback.enabled/min_conf/min_score, privacy.log_element_name).
+
+### Mode
+
+`Mode.VOICE_CLICK`: chặn gesture, cho voice và gaze highlight;
+`wake_transition` giữ nguyên mode này. Hotkey `Ctrl+Alt+O`.
+
+### Test
+
+```bash
+pytest -q                       # 145 passed
+pytest -q --benchmark-only      # find() < 5ms, update() < 0.1ms
+```
+
+### Privacy
+
+Không ghi ảnh xuống đĩa; OCR text không được lưu trong `FoundElement`;
+telemetry `click_target` chỉ có `target_chars`, khi bấm lưu
+`element_id` / `role` / `duration_ms`.

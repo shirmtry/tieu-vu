@@ -485,5 +485,17 @@ GET https://qr.sepay.vn/img?acc=0374756847&bank=MB%20Bank&des=Ung%20ho%20Tieu%20
 
 ---
 
+## 10. PHASE 8 — VOICE CLICK (DONE)
+
+- Mode `VOICE_CLICK` (`Ctrl+Alt+O`): blocks gestures, allows voice + gaze.
+- `core/finder/`: `UiaFinder` (primary), `OcrFinder` (fallback, bbox only),
+  `HybridFinder`; no teencode map, no LLM.
+- Privacy: no screenshots to disk; no OCR text or element names in telemetry.
+- Tests: `tests/test_finder_*.py`, `tests/test_integration_voice_click.py`,
+  `tests/test_perf_bench.py`.
+- Installer: `install.bat`; daily maintenance: `scripts/auto_dev.py`.
+
+---
+
 **END OF AGENTS.md**
 ```

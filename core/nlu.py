@@ -59,6 +59,10 @@ DEFAULT_RULES = [
      "slot": "rest", "slot_key": "query", "confidence": 0.85},
     {"name": "type_text", "patterns": ["gõ", "nhập", "viết", "type"],
      "slot": "rest", "slot_key": "text", "confidence": 0.85},
+    {"name": "click_target", "patterns": [
+        "bấm nút", "bấm vào nút", "nhấn nút", "nhấn vào nút", "chọn nút",
+        "click nút", "bấm", "nhấn", "click", "mở"],
+     "slot": "rest", "slot_key": "target", "confidence": 0.85},
     {"name": "click", "patterns": ["bấm chuột", "click", "nhấp"],
      "confidence": 0.9},
     {"name": "scroll", "patterns": ["cuộn lên", "cuộn xuống", "scroll up",
@@ -144,7 +148,7 @@ class LLMFallback:
             "Ban la bo phan tich lenh cho tro ly may tinh Tiểu Vũ.\n"
             "Tra ve DUY NHAT mot JSON: {\"action\": <ten>, \"payload\": {...}}.\n"
             "Cac action hop le: donate_window, search, type_text, open_url, "
-            "click, scroll.\n"
+            "click, click_target, scroll.\n"
             f"Cau lenh: {text}\nJSON:"
         )
         try:

@@ -73,6 +73,7 @@ class HUDOverlay:
         self._status = "IDLE"
         self._suggestions: List[str] = []
         self._dwell = 0.0
+        self._accent: Optional[str] = None
 
     # ------------------------------------------------------------------
     def _build(self):
@@ -109,7 +110,7 @@ class HUDOverlay:
         color = "#%02x%02x%02x" % (ring_color(self._dwell)[2],
                                    ring_color(self._dwell)[1],
                                    ring_color(self._dwell)[0])
-        self._canvas.itemconfigure("ring", outline=color)
+        self._canvas.itemconfigure("ring", outline=self._accent or color)
 
     def _run(self):
         try:
@@ -140,6 +141,11 @@ class HUDOverlay:
 
     def set_status(self, status: str):
         self._status = status
+        self._post(self._apply)
+
+    def set_accent(self, color: Optional[str]):
+        """Mau vong trang thai (vd cyan cho VOICE_CLICK); None = theo dwell."""
+        self._accent = color
         self._post(self._apply)
 
     def set_dwell(self, progress: float, suggestions: Optional[List[str]] = None):
