@@ -36,3 +36,6 @@ config/calibration_*.npz
 Thumbs.db
 .idea/
 .vscode/
+
+# --- Local scratch ---
+/unused/
