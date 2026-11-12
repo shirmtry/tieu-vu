@@ -35,6 +35,7 @@ from actions.text_control import TextController
 from actions.web_agent import WebAgent
 from core.autocomplete import AutocompleteEngine
 from core.click_engine import BlinkDetector, DwellClicker
+from core.coder_backend import from_config as backend_from_config
 from core.gaze_estimator import GazeEstimator, head_pitch_ok
 from core.nlu import NLU
 from core.scroll_engine import EdgeScrollEngine
@@ -315,7 +316,8 @@ class App:
         self.text = TextController(config)
         self.web = WebAgent(config, self.text, event_queue=self.action_queue)
         self.tts = VieNeuTTS(config)
-        self.coder = CoderActions(config, event_queue=self.action_queue, tts=self.tts)
+        self.coder = CoderActions(config, event_queue=self.action_queue,
+                                  tts=self.tts, backend=backend_from_config(config))
         tel_cfg = config.get("telemetry", {})
         self.telemetry = (Telemetry(tel_cfg.get("db_path", "logs/telemetry.db"))
                           if tel_cfg.get("enabled", True) else None)

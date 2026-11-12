@@ -218,18 +218,22 @@ class CoderActions:
     # ------------------------------------------------------------------
     # delegate_to_coder (OpenCode / Aider — Phase 6)
     # ------------------------------------------------------------------
+    def _backend_available(self) -> bool:
+        return (self.backend is not None
+                and getattr(self.backend, "name", "none") != "none")
+
     def _on_backend_line(self, line: str):
         log.info("[coder-backend] %s", line)
 
     def delegate_to_coder(self, prompt: str) -> str:
-        if self.backend is None:
+        if not self._backend_available():
             log.warning("delegate_to_coder: chua cau hinh backend.")
             return ""
         return self.backend.run(str(prompt), str(self.root), self._on_backend_line)
 
     def delegate_async(self, prompt: str):
         def _job():
-            if self.backend is None:
+            if not self._backend_available():
                 self._emit_speak("Chưa cài OpenCode hoặc Aider. "
                                  "Xem SOLUTION.md để cài đặt.")
                 return

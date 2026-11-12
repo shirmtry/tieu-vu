@@ -49,6 +49,8 @@ class _FakeNLU:
 
 
 class _FakeBackend:
+    name = "fake"
+
     def __init__(self):
         self.calls = []
 
