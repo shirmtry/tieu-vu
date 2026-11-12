@@ -112,7 +112,7 @@ state_machine:
     - "ONE_HAND_MOUSE"
   # Trang thai khoi dau.
   initial_state: "IDLE"
-  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS.
+  # Che do dieu khien khoi dau: IDLE | GAZE | VOICE | VK | FOCUS | CODE.
   initial_mode: "IDLE"
   # Thoi gian giu chuot trai de chuyen sang Drag (giu 1s = drag).
   drag_hold_sec: 1.0
@@ -177,6 +177,19 @@ voice:
   command_timeout_sec: 6.0
   # Tan so lay mau micro.
   sample_rate: 16000
+  # Hybrid STT: Vosk bat wake-word (streaming, do tre thap), PhoWhisper
+  # transcribe lai buffer audio sau khi wake (chinh xac hon, code-switch).
+  stt:
+    engine: "hybrid"  # vosk | phowhisper | hybrid
+    # Thu muc model CTranslate2 cua vinai/PhoWhisper-small (xem SOLUTION.md).
+    phowhisper_model: "models/phowhisper-small"
+    phowhisper_device: "cpu"        # cpu | cuda
+    phowhisper_compute_type: "int8" # int8 | float16 | float32
+  # TTS tieng Viet (code-switching Viet-Anh). Thieu engine -> no-op.
+  tts:
+    engine: "vieneu"  # vieneu | pyttsx3 | none
+    vieneu_voice: "models/vieneu-voice"
+    rate: 1.0
   # Chi muc micro (-1 = mac dinh cua Windows). Xem README muc 4.
   device_index: -1
   # Nguong nang luong de loc khoang lang (RMS).
@@ -283,6 +296,26 @@ nlu:
   llm_fallback: false
   llm_model: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
   rules: []
+  # Coder NLU: Qwen2.5-Coder qua Ollama (local). Rule-based van chay truoc.
+  coder:
+    enabled: true
+    model: "qwen2.5-coder:7b"
+    ollama_url: "http://localhost:11434"
+    timeout_sec: 30
+
+# =====================================================================
+# CODER - workspace + lenh an toan cho AI coder mode
+# =====================================================================
+coder:
+  # Moi path cua coding actions phai nam trong thu muc nay.
+  workspace_root: "."
+  # Chi cac executable nay duoc phep chay bang run_command.
+  allowed_commands: ["pytest", "git", "pip", "python", "node", "npm"]
+  command_timeout_sec: 300
+  # Backend cho task coding phuc tap: opencode | aider | none
+  backend: "opencode"
+  opencode_path: "opencode"
+  aider_path: "aider"
 
 # =====================================================================
 # AUTOCOMPLETE - n-gram cuc bo, HUD hien 3 goi y, Tab chap nhan

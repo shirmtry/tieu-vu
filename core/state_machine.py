@@ -70,6 +70,7 @@ class State(Enum):
 #   VOICE - micro (gesture bi khoa)
 #   VK    - ban phim ao (gesture/micro bi khoa)
 #   FOCUS - khoa toan bo input AI (chi hotkey)
+#   CODE  - micro -> CoderNLU (gesture bi khoa, mode duoc giu khi noi)
 # ---------------------------------------------------------------------
 class Mode(Enum):
     IDLE = "IDLE"
@@ -77,6 +78,7 @@ class Mode(Enum):
     VOICE = "VOICE"
     VK = "VK"
     FOCUS = "FOCUS"
+    CODE = "code"
 
     @property
     def accepts_gestures(self) -> bool:
@@ -88,7 +90,30 @@ class Mode(Enum):
 
     @property
     def accepts_voice(self) -> bool:
-        return self is Mode.VOICE
+        return self in (Mode.VOICE, Mode.CODE)
+
+
+def wake_transition(mode: Mode) -> Optional[Mode]:
+    """Mode dich khi wake word kich hoat; None = khong doi mode.
+
+    VK/FOCUS khoa micro (wake bi tu choi), VOICE/CODE da san sang nhan
+    lenh nen giu nguyen. Cac mode khac tam chuyen sang VOICE.
+    """
+    if mode in (Mode.VK, Mode.FOCUS):
+        return None
+    if mode in (Mode.VOICE, Mode.CODE):
+        return None
+    return Mode.VOICE
+
+
+def done_transition(mode: Mode, prev_mode: Mode) -> Optional[Mode]:
+    """Mode khoi phuc sau khi nghe xong lenh; None = giu nguyen.
+
+    CODE duoc giu lai (khong tu thoat) cho den khi user toggle hotkey.
+    """
+    if mode is not Mode.VOICE:
+        return None
+    return prev_mode if prev_mode not in (Mode.VOICE, Mode.VK) else Mode.GAZE
 
 
 

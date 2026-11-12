@@ -47,13 +47,53 @@ Everything runs **offline on CPU** — no cloud, no telemetry sent out, no GPU r
 | **Virtual keyboard** | Transparent Tkinter overlay, dwell-select keys | ✅ |
 | **Voice-to-text** | Vosk streaming (vi + en), insert via clipboard | ✅ |
 | **Voice commands** | Fuzzy Vietnamese/English rule-based NLU | ✅ |
+| **Hybrid STT** | Vosk wake-word + PhoWhisper-small transcription (optional) | ✅ |
+| **Vietnamese TTS** | VieNeu-TTS / pyttsx3 fallback, Việt–Anh code-switching | ✅ |
+| **AI coder mode** | Qwen2.5-Coder (Ollama) tool-calling + coding actions | ✅ |
+| **Delegate coding** | OpenCode / Aider for multi-file refactors (optional) | ✅ |
 | **LLM NLU fallback** | Qwen2.5-0.5B GGUF via llama-cpp-python (optional) | 🚧 |
 | **Wake word** | Vosk phrase matcher; openWakeWord optional | ✅ |
 | **Snippets** | `;addr` → expand full text from config | ✅ |
 | **Autocomplete** | Local n-gram, 3 suggestions, Tab accepts | ✅ |
-| **Mode exclusivity** | IDLE / GAZE / VOICE / VK / FOCUS, one input at a time | ✅ |
+| **Mode exclusivity** | IDLE / GAZE / VOICE / VK / FOCUS / CODE, one at a time | ✅ |
 | **Telemetry** | Local SQLite action log + stats | ✅ |
 | **Donate** | SePay VietQR in-app + FastAPI webhook | ✅ |
+
+---
+
+## 🤖 AI Coder Mode
+
+Voice-driven coding assistant. Toggle with **`Ctrl+Alt+C`** (toggle back to leave).
+Voice commands are in Vietnamese with English technical terms mixed in.
+
+| Capability | What it does |
+|---|---|
+| Hybrid STT | Vosk catches the wake word; PhoWhisper transcribes the command |
+| Vietnamese TTS | Speaks results back (VieNeu-TTS, falls back to `pyttsx3`) |
+| Coder NLU | `qwen2.5-coder:7b` via local Ollama tool-calling (no cloud) |
+| Coding actions | `create_file`, `run_command` (whitelist), `git_commit`, `search_code`, `explain_code` |
+| Delegate | Long refactors go to OpenCode / Aider and stream back into the log |
+
+Example commands:
+
+- "tạo file hello.py với print('hello')"
+- "chạy pytest"
+- "commit với message fix auth"
+- "tìm hàm login"
+- "giải thích file core/nlu.py"
+- "refactor file auth.py thành async"
+
+Install the optional pieces (missing dependencies degrade gracefully — the rest of
+Tiểu Vũ keeps working):
+
+```bash
+pip install faster-whisper          # PhoWhisper-small transcription
+ollama pull qwen2.5-coder:7b        # Coder NLU
+npm i -g opencode-ai                # or: pip install aider-chat
+```
+
+Download the PhoWhisper-small CTranslate2 model into `models/phowhisper-small/`.
+Full setup + architecture notes: [`SOLUTION.md`](./SOLUTION.md).
 
 ---
 
@@ -187,13 +227,16 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full design.
 ```
 tieu-vu/
 ├── core/                  # perception + state (vision, gaze, voice, NLU)
-├── actions/               # OS control (mouse, text, system, web)
+│   ├── voice/             # PhoWhisper STT + VieNeu TTS engines
+│   ├── nlu_coder.py       # Qwen2.5-Coder tool-calling (Ollama)
+│   └── coder_backend.py   # OpenCode / Aider delegate backends
+├── actions/               # OS control (mouse, text, system, web, coder)
 ├── ui/                    # Tkinter HUD, virtual keyboard, tray, donate window
 ├── server/                # FastAPI webhook for SePay donate
-├── models/                # Vosk models (not committed — download manually)
-├── tests/                 # pytest unit + integration (66 tests)
+├── models/                # Vosk / PhoWhisper models (not committed)
+├── tests/                 # pytest unit + integration
 ├── docs/                  # ARCHITECTURE, CALIBRATION, DONATE
-├── config.yaml            # commands, snippets, dwell/gaze parameters
+├── config.yaml            # commands, snippets, dwell/gaze/voice/coder parameters
 ├── main.py                # entry point
 └── requirements.txt
 ```
@@ -228,6 +271,7 @@ CI runs the same test and lint gates on every push and pull request
 
 | Doc | Content |
 |---|---|
+| [`SOLUTION.md`](./SOLUTION.md) | AI coder upgrade: architecture before/after, setup |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | System design, data flow, trade-offs |
 | [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) | 9-dot wizard, poly2 fit, validation |
 | [`docs/DONATE.md`](./docs/DONATE.md) | SePay webhook setup and testing |

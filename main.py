@@ -28,19 +28,22 @@ from typing import List, Optional
 import cv2
 import yaml
 
+from actions.coder_actions import CoderActions
 from actions.mouse_control import MouseController
 from actions.system_control import SystemController
 from actions.text_control import TextController
 from actions.web_agent import WebAgent
 from core.autocomplete import AutocompleteEngine
 from core.click_engine import BlinkDetector, DwellClicker
+from core.coder_backend import from_config as backend_from_config
 from core.gaze_estimator import GazeEstimator, head_pitch_ok
 from core.nlu import NLU
 from core.scroll_engine import EdgeScrollEngine
 from core.snippet_engine import SnippetEngine, SnippetListener
-from core.state_machine import ActionEvent, Mode, StateMachine
+from core.state_machine import ActionEvent, Mode, StateMachine, done_transition, wake_transition
 from core.telemetry import Telemetry
 from core.vision_engine import LEFT_IRIS, RIGHT_IRIS, VisionEngine
+from core.voice.tts_vieneu import VieNeuTTS
 from core.voice_engine import VoiceEngine
 from ui.hud import HUDOverlay, draw_dwell_ring
 from ui.tray import TrayIcon
@@ -91,12 +94,14 @@ class ActionDispatcher:
     def __init__(self, config: dict, mouse: MouseController,
                  system: SystemController, text: TextController,
                  web: WebAgent, telemetry: Optional[Telemetry] = None,
-                 ui_hooks: Optional[dict] = None):
+                 ui_hooks: Optional[dict] = None, tts=None, coder=None):
         self.mouse = mouse
         self.system = system
         self.text = text
         self.web = web
         self.telemetry = telemetry
+        self.tts = tts
+        self.coder = coder
         hooks = ui_hooks or {}
         self._table = {
             "mouse_move": lambda p: self.mouse.move(p["x"], p["y"]),
@@ -127,7 +132,42 @@ class ActionDispatcher:
             "donate_window": lambda p: hooks.get("donate", lambda: None)(),
             "calibrate": lambda p: hooks.get("calibrate", lambda: None)(),
             "wake_toggle": lambda p: log.info("wake_toggle (khong co hanh dong)."),
+            "speak": lambda p: self._speak(p.get("text", ""),
+                                           bool(p.get("blocking", False))),
+            # AI coder mode (Phase 4).
+            "create_file": lambda p: self._coder_op(
+                "create_file", p["path"], p.get("content", "")),
+            "run_command": lambda p: self._coder_op(
+                "run_command_async", p["cmd"], p.get("cwd", ".")),
+            "git_commit": lambda p: self._speak(
+                self._coder_op("git_commit", p["message"]) or ""),
+            "search_code": lambda p: self._speak_search(
+                self._coder_op("search_code", p["query"])),
+            "explain_code": lambda p: self._coder_op(
+                "explain_code_async", p["file"], p.get("lines")),
+            "delegate_to_coder": lambda p: self._coder_op(
+                "delegate_async", p["prompt"]),
         }
+
+    def _coder_op(self, method: str, *args, **kwargs):
+        if self.coder is None:
+            log.warning("CoderActions chua san sang (%s).", method)
+            return None
+        return getattr(self.coder, method)(*args, **kwargs)
+
+    def _speak_search(self, results):
+        count = len(results or [])
+        if count:
+            first = results[0] if isinstance(results[0], str) else ""
+            self._speak(f"Tìm thấy {count} kết quả. {first}"[:400])
+        else:
+            self._speak("Không tìm thấy kết quả nào.")
+
+    def _speak(self, text: str, blocking: bool = False):
+        if self.tts is None:
+            log.warning("TTS chua san sang, bo qua: '%s'", text)
+            return
+        self.tts.speak(text, blocking)
 
     def dispatch(self, event: ActionEvent):
         handler = self._table.get(event.name)
@@ -275,6 +315,9 @@ class App:
         self.system = SystemController(config)
         self.text = TextController(config)
         self.web = WebAgent(config, self.text, event_queue=self.action_queue)
+        self.tts = VieNeuTTS(config)
+        self.coder = CoderActions(config, event_queue=self.action_queue,
+                                  tts=self.tts, backend=backend_from_config(config))
         tel_cfg = config.get("telemetry", {})
         self.telemetry = (Telemetry(tel_cfg.get("db_path", "logs/telemetry.db"))
                           if tel_cfg.get("enabled", True) else None)
@@ -284,14 +327,18 @@ class App:
         }
         self.dispatcher = ActionDispatcher(
             config, self.mouse, self.system, self.text, self.web,
-            telemetry=self.telemetry, ui_hooks=self.hooks)
+            telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts,
+            coder=self.coder)
         self.worker = ActionWorker(self.action_queue, self.dispatcher, self.pause_flag)
 
         self.vision = VisionEngine(config)
         self.sm = StateMachine(config)
         self.voice = VoiceEngine(config, self.action_queue)
         self.nlu = NLU(config)
+        self.coder.coder_nlu = getattr(self.nlu, "coder", None)
         self.voice.nlu = self.nlu
+        self.voice.coder_nlu = self.coder.coder_nlu
+        self.voice.code_mode = lambda: self.sm.mode is Mode.CODE
         self.voice.gate = lambda: self.sm.mode.accepts_voice
         self.voice.on_wake = self._on_voice_wake
         self.voice.on_command_done = self._on_voice_done
@@ -360,18 +407,18 @@ class App:
         self.set_mode(target)
 
     def _on_voice_wake(self) -> bool:
-        if self.sm.mode in (Mode.VK, Mode.FOCUS):
-            return False
-        if self.sm.mode is not Mode.VOICE:
-            self._prev_mode = self.sm.mode
-        self.set_mode(Mode.VOICE)
+        target = wake_transition(self.sm.mode)
+        if target is None:
+            # VK/FOCUS tu choi; VOICE/CODE giu nguyen mode.
+            return self.sm.mode in (Mode.VOICE, Mode.CODE)
+        self._prev_mode = self.sm.mode
+        self.set_mode(target)
         return True
 
     def _on_voice_done(self):
-        if self.sm.mode is Mode.VOICE:
-            restore = (self._prev_mode
-                       if self._prev_mode not in (Mode.VOICE, Mode.VK) else Mode.GAZE)
-            self.set_mode(restore)
+        target = done_transition(self.sm.mode, self._prev_mode)
+        if target is not None:
+            self.set_mode(target)
 
     def toggle_pause(self):
         if self.pause_flag.is_set():
@@ -541,11 +588,12 @@ class App:
                 "<ctrl>+<alt>+v": lambda: self.toggle_mode(Mode.VOICE),
                 "<ctrl>+<alt>+k": lambda: self.toggle_mode(Mode.VK),
                 "<ctrl>+<alt>+f": lambda: self.toggle_mode(Mode.FOCUS),
+                "<ctrl>+<alt>+c": lambda: self.toggle_mode(Mode.CODE),
                 "<ctrl>+<alt>+p": self.toggle_pause,
                 "<ctrl>+<alt>+q": self.quit,
             })
             self._hotkey_listener.start()
-            log.info("Hotkeys: Ctrl+Alt+G/V/K/F mode | P pause | Q quit")
+            log.info("Hotkeys: Ctrl+Alt+G/V/K/F/C mode | P pause | Q quit")
         except Exception as exc:
             log.warning("Khong khoi tao duoc hotkey: %s", exc)
 
@@ -631,6 +679,7 @@ class App:
         self.mouse.drag_end()
         self.vision.stop()
         self.voice.stop()
+        self.tts.stop()
         self.web.stop()
         self.worker.stop()
         self.snippet_listener.stop()
