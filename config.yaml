@@ -116,6 +116,8 @@ state_machine:
   initial_mode: "IDLE"
   # Thoi gian giu chuot trai de chuyen sang Drag (giu 1s = drag).
   drag_hold_sec: 1.0
+  # Giu 2 ban tay xoe (5 ngon) du 5s -> click tai diem mat dang nhin (UIA).
+  two_hand_click_hold_sec: 5.0
 
 # ---------------------------------------------------------------------
 # MOUSE - One Euro Filter + anh xa toa do
@@ -139,7 +141,7 @@ mouse:
 # SYSTEM - Am thanh, media, app launcher
 # ---------------------------------------------------------------------
 system:
-  # App mac dinh mo khi xoe 2 ban tay.
+  # App mac dinh khi goi open_app voi ten khong ro (vd lenh voice "mo chrome").
   default_app: "chrome"
   # Duong dan tuyet doi (tuy chon) neu app khong co trong PATH.
   app_paths:
@@ -171,7 +173,7 @@ voice:
   # Model Anh (wake word "jarvis"): models/vosk-model-small-en-us-0.15.
   model_path: "models/vosk-model-vn-0.4"
   # Wake word kich hoat micro (ho tro nhieu tu, phan cach bang dau phay).
-  # Model Viet khong co tu "jarvis" trong tu vung -> dung "trợ lý".
+  # "trợ lý" co san trong tu vung model VN; dung tu la se lam Vosk fail.
   wake_word: "trợ lý"
   # Thoi gian cho lenh sau khi wake (sec).
   command_timeout_sec: 6.0
@@ -185,6 +187,9 @@ voice:
     phowhisper_model: "models/phowhisper-small"
     phowhisper_device: "cpu"        # cpu | cuda
     phowhisper_compute_type: "int8" # int8 | float16 | float32
+    # Tat VAD cua faster-whisper: audio da duoc cat theo wake-word + timeout,
+    # bat VAD se cat mat dau cau -> mat chu.
+    vad_filter: false
   # TTS tieng Viet (code-switching Viet-Anh). Thieu engine -> no-op.
   tts:
     engine: "vieneu"  # vieneu | pyttsx3 | none
@@ -298,7 +303,8 @@ nlu:
   rules: []
   # Coder NLU: Qwen2.5-Coder qua Ollama (local). Rule-based van chay truoc.
   coder:
-    enabled: true
+    # Ollama khong chay local -> tat de tranh warning ket noi.
+    enabled: false
     model: "qwen2.5-coder:7b"
     ollama_url: "http://localhost:11434"
     timeout_sec: 30

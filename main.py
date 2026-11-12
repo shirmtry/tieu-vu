@@ -96,7 +96,7 @@ class ActionDispatcher:
                  system: SystemController, text: TextController,
                  web: WebAgent, telemetry: Optional[Telemetry] = None,
                  ui_hooks: Optional[dict] = None, tts=None, coder=None,
-                 finder=None):
+                 finder=None, gaze_point=None):
         self.mouse = mouse
         self.system = system
         self.text = text
@@ -105,6 +105,7 @@ class ActionDispatcher:
         self.tts = tts
         self.coder = coder
         self.finder = finder
+        self.gaze_point = gaze_point
         hooks = ui_hooks or {}
         self._table = {
             "mouse_move": lambda p: self.mouse.move(p["x"], p["y"]),
@@ -136,6 +137,7 @@ class ActionDispatcher:
             "calibrate": lambda p: hooks.get("calibrate", lambda: None)(),
             "wake_toggle": lambda p: log.info("wake_toggle (khong co hanh dong)."),
             "click_target": lambda p: self._click_target(p),
+            "gaze_click": lambda p: self._gaze_click(p),
             "speak": lambda p: self._speak(p.get("text", ""),
                                            bool(p.get("blocking", False))),
             # AI coder mode (Phase 4).
@@ -188,6 +190,29 @@ class ActionDispatcher:
                 "voice_click", "voice",
                 telemetry_fields(results[0], (time.perf_counter() - t0) * 1000.0))
         self._speak(f"Đã bấm {results[0].role}.")
+
+    def _gaze_click(self, payload):
+        """Click element tai diem mat dang nhin (kich hoat boi giu 2 tay 5s)."""
+        if self.gaze_point is None:
+            return
+        point = self.gaze_point()
+        if point is None:
+            log.info("Gaze click: chua co toa do mat.")
+            return
+        gx, gy = point
+        from core.finder.actions import click_found
+        from core.finder.uia_finder import UiaFinder
+
+        el = UiaFinder().find_at_point(gx, gy)
+        if el is not None:
+            click_found(el, self.mouse)
+            log.info("Clicked element via 2-hand gaze: %s", el.role)
+        else:
+            # Khong co element UIA (desktop/ảnh...) -> click dung diem nhin.
+            log.info("No element found at gaze point; clicking raw point.")
+            self.mouse.move_screen(gx, gy)
+            self.mouse.left_click()
+        self._speak("Đã bấm")
 
     def dispatch(self, event: ActionEvent):
         handler = self._table.get(event.name)
@@ -352,12 +377,14 @@ class App:
         self.dispatcher = ActionDispatcher(
             config, self.mouse, self.system, self.text, self.web,
             telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts,
-            coder=self.coder, finder=self.finder)
+            coder=self.coder, finder=self.finder,
+            gaze_point=lambda: self._gaze_point_px())
         self.worker = ActionWorker(self.action_queue, self.dispatcher, self.pause_flag)
 
         self.vision = VisionEngine(config)
         self.sm = StateMachine(config)
         self.voice = VoiceEngine(config, self.action_queue)
+        self.voice.tts = self.tts
         self.nlu = NLU(config)
         self.coder.coder_nlu = getattr(self.nlu, "coder", None)
         self.voice.nlu = self.nlu
@@ -404,7 +431,10 @@ class App:
         self.hud = HUDOverlay(enabled=bool(ui_cfg.get("hud", True)))
         self.vk = VirtualKeyboard(self._on_vk_key)
         self.tray = (TrayIcon(self.toggle_pause, self.open_calibration,
-                              self.open_donate, self.quit, title="Tiểu Vũ")
+                              self.open_donate, self.quit,
+                              mode_callback=self.set_mode,
+                              get_current_mode=lambda: self.sm.mode.name,
+                              title=f"Tiểu Vũ - {self.sm.mode.name}")
                      if ui_cfg.get("tray", True) else None)
         self._prev_mode = Mode.IDLE
         self._hotkey_listener = None
@@ -414,10 +444,18 @@ class App:
     # ------------------------------------------------------------------
     # Mode + UI callbacks
     # ------------------------------------------------------------------
-    def set_mode(self, mode: Mode):
+    def set_mode(self, mode):
+        if not isinstance(mode, Mode):
+            try:
+                mode = Mode(str(mode).upper())
+            except ValueError:
+                log.warning("Mode khong hop le: %s", mode)
+                return
         self.sm.set_mode(mode)
         self.hud.set_status(mode.value)
         self.hud.set_accent("#00E5FF" if mode is Mode.VOICE_CLICK else None)
+        if self.tray is not None:
+            self.tray.update_title(f"Tiểu Vũ - {mode.name}")
         if mode is Mode.VK:
             if not self._vk_started:
                 self.vk.start()
@@ -550,10 +588,20 @@ class App:
     # ------------------------------------------------------------------
     # Gaze processing (mỗi frame)
     # ------------------------------------------------------------------
+    def _gaze_point_px(self):
+        """Toa do mat hien tai (px man hinh) cho hanh dong gaze_click."""
+        if self._gaze_px is None:
+            return None
+        return (int(self._gaze_px[0] * self.gaze.screen_w),
+                int(self._gaze_px[1] * self.gaze.screen_h))
+
     def _process_gaze(self, frame) -> List[ActionEvent]:
         events: List[ActionEvent] = []
         now = frame.timestamp
-        if not self.gaze_enabled or self.sm.mode is not Mode.GAZE:
+        # IDLE cung cap nhat toa do mat (cho cu chi 2 tay); chi GAZE moi
+        # dwell/blink/scroll de tranh click ngoai y muon.
+        track = self.gaze_enabled and self.sm.mode in (Mode.GAZE, Mode.IDLE)
+        if not track:
             self._dwell_progress = 0.0
             self._gaze_px = None
             return events
@@ -568,6 +616,9 @@ class App:
 
         self._gaze_px = (sg.x / max(self.gaze.screen_w, 1),
                          sg.y / max(self.gaze.screen_h, 1))
+        if self.sm.mode is not Mode.GAZE:
+            self._dwell_progress = 0.0
+            return events
         state = self.dwell.update(sg.x, sg.y, now)
         self._dwell_progress = state.progress
         if state.clicked:
@@ -756,6 +807,16 @@ def run_dry(config: dict, seconds: float) -> int:
     from core.vision_engine import VisionFrame
     setup_logging(config)
     sm, nlu, finder = StateMachine(config), NLU(config), HybridFinder(config)
+    stt_cfg = (config.get("voice", {}) or {}).get("stt", {}) or {}
+    if str(stt_cfg.get("engine", "vosk")).lower() in ("phowhisper", "hybrid"):
+        from core.voice.stt_phowhisper import PhoWhisperSTT
+        pho = PhoWhisperSTT(
+            str(stt_cfg.get("phowhisper_model", "models/phowhisper-small")),
+            str(stt_cfg.get("phowhisper_device", "cpu")),
+            str(stt_cfg.get("phowhisper_compute_type", "int8")),
+            vad_filter=bool(stt_cfg.get("vad_filter", True)))
+        if not pho.warm_up():
+            log.warning("PhoWhisper khong san sang -> fallback Vosk.")
     deadline, frames = time.time() + max(1.0, float(seconds)), 0
     while time.time() < deadline:
         sm.update(VisionFrame(timestamp=time.time(), hands=[]))
