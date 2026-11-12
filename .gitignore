@@ -37,5 +37,15 @@ Thumbs.db
 .idea/
 .vscode/
 
+# --- Build / reports ---
+build/
+dist/
+*.spec
+!tieu_vu.spec
+*.spec.bak
+.benchmark/
+.reports/
+.baseline/
+
 # --- Local scratch ---
 /unused/
