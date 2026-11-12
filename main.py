@@ -36,6 +36,7 @@ from actions.web_agent import WebAgent
 from core.autocomplete import AutocompleteEngine
 from core.click_engine import BlinkDetector, DwellClicker
 from core.coder_backend import from_config as backend_from_config
+from core.finder.hybrid import HybridFinder
 from core.gaze_estimator import GazeEstimator, head_pitch_ok
 from core.nlu import NLU
 from core.scroll_engine import EdgeScrollEngine
@@ -94,7 +95,8 @@ class ActionDispatcher:
     def __init__(self, config: dict, mouse: MouseController,
                  system: SystemController, text: TextController,
                  web: WebAgent, telemetry: Optional[Telemetry] = None,
-                 ui_hooks: Optional[dict] = None, tts=None, coder=None):
+                 ui_hooks: Optional[dict] = None, tts=None, coder=None,
+                 finder=None):
         self.mouse = mouse
         self.system = system
         self.text = text
@@ -102,6 +104,7 @@ class ActionDispatcher:
         self.telemetry = telemetry
         self.tts = tts
         self.coder = coder
+        self.finder = finder
         hooks = ui_hooks or {}
         self._table = {
             "mouse_move": lambda p: self.mouse.move(p["x"], p["y"]),
@@ -132,6 +135,7 @@ class ActionDispatcher:
             "donate_window": lambda p: hooks.get("donate", lambda: None)(),
             "calibrate": lambda p: hooks.get("calibrate", lambda: None)(),
             "wake_toggle": lambda p: log.info("wake_toggle (khong co hanh dong)."),
+            "click_target": lambda p: self._click_target(p),
             "speak": lambda p: self._speak(p.get("text", ""),
                                            bool(p.get("blocking", False))),
             # AI coder mode (Phase 4).
@@ -169,13 +173,32 @@ class ActionDispatcher:
             return
         self.tts.speak(text, blocking)
 
+    def _click_target(self, payload):
+        target = str(payload.get("target") or "").strip()
+        if not target or self.finder is None:
+            return
+        from core.finder.actions import click_found, telemetry_fields
+
+        t0 = time.perf_counter()
+        if not (results := self.finder.find(target)):
+            return self._speak(f"Không tìm thấy '{target}' trên màn hình.")
+        click_found(results[0], self.mouse)
+        if self.telemetry is not None:
+            self.telemetry.log_action(
+                "voice_click", "voice",
+                telemetry_fields(results[0], (time.perf_counter() - t0) * 1000.0))
+        self._speak(f"Đã bấm {results[0].role}.")
+
     def dispatch(self, event: ActionEvent):
         handler = self._table.get(event.name)
         if handler is None:
             log.warning("Hanh dong khong hop le: %s", event.name)
             return
         if self.telemetry is not None:
-            self.telemetry.log_action(event.name, event.source, event.payload)
+            # Privacy: chi luu do dai target cho voice-click, khong luu ten.
+            payload = ({"target_chars": len(str(event.payload.get("target", "")))}
+                       if event.name == "click_target" else event.payload)
+            self.telemetry.log_action(event.name, event.source, payload)
         try:
             handler(event.payload)
         except Exception as exc:
@@ -318,6 +341,7 @@ class App:
         self.tts = VieNeuTTS(config)
         self.coder = CoderActions(config, event_queue=self.action_queue,
                                   tts=self.tts, backend=backend_from_config(config))
+        self.finder = HybridFinder(config)
         tel_cfg = config.get("telemetry", {})
         self.telemetry = (Telemetry(tel_cfg.get("db_path", "logs/telemetry.db"))
                           if tel_cfg.get("enabled", True) else None)
@@ -328,7 +352,7 @@ class App:
         self.dispatcher = ActionDispatcher(
             config, self.mouse, self.system, self.text, self.web,
             telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts,
-            coder=self.coder)
+            coder=self.coder, finder=self.finder)
         self.worker = ActionWorker(self.action_queue, self.dispatcher, self.pause_flag)
 
         self.vision = VisionEngine(config)
@@ -393,6 +417,7 @@ class App:
     def set_mode(self, mode: Mode):
         self.sm.set_mode(mode)
         self.hud.set_status(mode.value)
+        self.hud.set_accent("#00E5FF" if mode is Mode.VOICE_CLICK else None)
         if mode is Mode.VK:
             if not self._vk_started:
                 self.vk.start()
@@ -409,8 +434,8 @@ class App:
     def _on_voice_wake(self) -> bool:
         target = wake_transition(self.sm.mode)
         if target is None:
-            # VK/FOCUS tu choi; VOICE/CODE giu nguyen mode.
-            return self.sm.mode in (Mode.VOICE, Mode.CODE)
+            # VK/FOCUS tu choi; VOICE/CODE/VOICE_CLICK giu nguyen mode.
+            return self.sm.mode.accepts_voice
         self._prev_mode = self.sm.mode
         self.set_mode(target)
         return True
@@ -589,11 +614,12 @@ class App:
                 "<ctrl>+<alt>+k": lambda: self.toggle_mode(Mode.VK),
                 "<ctrl>+<alt>+f": lambda: self.toggle_mode(Mode.FOCUS),
                 "<ctrl>+<alt>+c": lambda: self.toggle_mode(Mode.CODE),
+                "<ctrl>+<alt>+o": lambda: self.toggle_mode(Mode.VOICE_CLICK),
                 "<ctrl>+<alt>+p": self.toggle_pause,
                 "<ctrl>+<alt>+q": self.quit,
             })
             self._hotkey_listener.start()
-            log.info("Hotkeys: Ctrl+Alt+G/V/K/F/C mode | P pause | Q quit")
+            log.info("Hotkeys: Ctrl+Alt+G/V/K/F/C/O mode | P pause | Q quit")
         except Exception as exc:
             log.warning("Khong khoi tao duoc hotkey: %s", exc)
 
@@ -726,12 +752,28 @@ def run_calibration(config: dict) -> int:
         vision.stop()
 
 
+def run_dry(config: dict, seconds: float) -> int:
+    from core.vision_engine import VisionFrame
+    setup_logging(config)
+    sm, nlu, finder = StateMachine(config), NLU(config), HybridFinder(config)
+    deadline, frames = time.time() + max(1.0, float(seconds)), 0
+    while time.time() < deadline:
+        sm.update(VisionFrame(timestamp=time.time(), hands=[]))
+        frames += 1
+        time.sleep(1.0 / 30.0)
+    nlu.parse("bấm nút Đăng nhập")
+    log.info("Dry run OK: %d frames, mode=%s, finder=%s",
+             frames, sm.mode.value, type(finder).__name__)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tiểu Vũ — GazeFlow")
     parser.add_argument("--dev", action="store_true", help="preview + log DEBUG")
     parser.add_argument("--calibrate", action="store_true",
                         help="chạy hiệu chuẩn 9 điểm rồi thoát")
     parser.add_argument("--no-preview", action="store_true", help="tắt preview camera")
+    parser.add_argument("--dry-run-for", type=float, default=0.0, help="soak N giay")
     args = parser.parse_args()
 
     config = load_config()
@@ -739,6 +781,8 @@ def main() -> int:
         config.setdefault("app", {})["show_preview"] = False
     if args.calibrate:
         return run_calibration(config)
+    if args.dry_run_for > 0:
+        return run_dry(config, args.dry_run_for)
 
     setup_logging(config, dev=args.dev)
     log.info("Khoi dong %s ...", config.get("app", {}).get("name", "Tiểu Vũ"))
