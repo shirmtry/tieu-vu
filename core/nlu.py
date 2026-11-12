@@ -34,6 +34,8 @@ class Intent:
     payload: dict = field(default_factory=dict)
     confidence: float = 0.0
     source: str = "rule"           # "rule" | "llm"
+    # Cau phan hoi TTS (neu co) -> NLU sinh them Intent("speak").
+    response: str = ""
 
 
 # Rule mac dinh khi config khong khai bao. "slot": "rest" -> phan con lai
@@ -44,9 +46,15 @@ DEFAULT_RULES = [
         "ủng hộ", "donate", "quyên góp"], "confidence": 0.98},
     {"name": "wake_toggle", "patterns": [
         "bật tiểu vũ", "tắt tiểu vũ", "dừng tiểu vũ"], "confidence": 0.95},
-    {"name": "open_url", "patterns": ["mở youtube", "mở google", "mở github",
-                                      "open youtube", "open github"],
-     "payload": {"url": "https://www.youtube.com"}, "confidence": 0.9},
+    {"name": "open_url", "patterns": ["mở youtube", "open youtube"],
+     "payload": {"url": "https://www.youtube.com"},
+     "response": "Đã mở YouTube.", "confidence": 0.9},
+    {"name": "open_url", "patterns": ["mở google", "open google"],
+     "payload": {"url": "https://www.google.com"},
+     "response": "Đã mở Google.", "confidence": 0.9},
+    {"name": "open_url", "patterns": ["mở github", "open github"],
+     "payload": {"url": "https://github.com"},
+     "response": "Đã mở GitHub.", "confidence": 0.9},
     {"name": "search", "patterns": ["tìm kiếm", "tìm giúp", "tra cứu", "search"],
      "slot": "rest", "slot_key": "query", "confidence": 0.85},
     {"name": "type_text", "patterns": ["gõ", "nhập", "viết", "type"],
@@ -96,6 +104,7 @@ class RuleEngine:
                     payload=payload,
                     confidence=score / 100.0,
                     source="rule",
+                    response=str(rule.get("response", "")),
                 )
                 best_score = score
         return best
@@ -172,6 +181,10 @@ class NLU:
             return []
         intent = self.rules.parse(text)
         if intent is not None:
+            if intent.response:
+                # Thuc thi hanh dong truoc, sau do TTS tra loi.
+                return [intent, Intent("speak", {"text": intent.response},
+                                       intent.confidence, "rule")]
             return [intent]
         if self.llm is not None:
             intent = self.llm.parse(text)

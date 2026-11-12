@@ -185,6 +185,11 @@ voice:
     phowhisper_model: "models/phowhisper-small"
     phowhisper_device: "cpu"        # cpu | cuda
     phowhisper_compute_type: "int8" # int8 | float16 | float32
+  # TTS tieng Viet (code-switching Viet-Anh). Thieu engine -> no-op.
+  tts:
+    engine: "vieneu"  # vieneu | pyttsx3 | none
+    vieneu_voice: "models/vieneu-voice"
+    rate: 1.0
   # Chi muc micro (-1 = mac dinh cua Windows). Xem README muc 4.
   device_index: -1
   # Nguong nang luong de loc khoang lang (RMS).

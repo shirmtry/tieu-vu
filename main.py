@@ -41,6 +41,7 @@ from core.snippet_engine import SnippetEngine, SnippetListener
 from core.state_machine import ActionEvent, Mode, StateMachine
 from core.telemetry import Telemetry
 from core.vision_engine import LEFT_IRIS, RIGHT_IRIS, VisionEngine
+from core.voice.tts_vieneu import VieNeuTTS
 from core.voice_engine import VoiceEngine
 from ui.hud import HUDOverlay, draw_dwell_ring
 from ui.tray import TrayIcon
@@ -91,12 +92,13 @@ class ActionDispatcher:
     def __init__(self, config: dict, mouse: MouseController,
                  system: SystemController, text: TextController,
                  web: WebAgent, telemetry: Optional[Telemetry] = None,
-                 ui_hooks: Optional[dict] = None):
+                 ui_hooks: Optional[dict] = None, tts=None):
         self.mouse = mouse
         self.system = system
         self.text = text
         self.web = web
         self.telemetry = telemetry
+        self.tts = tts
         hooks = ui_hooks or {}
         self._table = {
             "mouse_move": lambda p: self.mouse.move(p["x"], p["y"]),
@@ -127,7 +129,15 @@ class ActionDispatcher:
             "donate_window": lambda p: hooks.get("donate", lambda: None)(),
             "calibrate": lambda p: hooks.get("calibrate", lambda: None)(),
             "wake_toggle": lambda p: log.info("wake_toggle (khong co hanh dong)."),
+            "speak": lambda p: self._speak(p.get("text", ""),
+                                           bool(p.get("blocking", False))),
         }
+
+    def _speak(self, text: str, blocking: bool = False):
+        if self.tts is None:
+            log.warning("TTS chua san sang, bo qua: '%s'", text)
+            return
+        self.tts.speak(text, blocking)
 
     def dispatch(self, event: ActionEvent):
         handler = self._table.get(event.name)
@@ -275,6 +285,7 @@ class App:
         self.system = SystemController(config)
         self.text = TextController(config)
         self.web = WebAgent(config, self.text, event_queue=self.action_queue)
+        self.tts = VieNeuTTS(config)
         tel_cfg = config.get("telemetry", {})
         self.telemetry = (Telemetry(tel_cfg.get("db_path", "logs/telemetry.db"))
                           if tel_cfg.get("enabled", True) else None)
@@ -284,7 +295,7 @@ class App:
         }
         self.dispatcher = ActionDispatcher(
             config, self.mouse, self.system, self.text, self.web,
-            telemetry=self.telemetry, ui_hooks=self.hooks)
+            telemetry=self.telemetry, ui_hooks=self.hooks, tts=self.tts)
         self.worker = ActionWorker(self.action_queue, self.dispatcher, self.pause_flag)
 
         self.vision = VisionEngine(config)
@@ -631,6 +642,7 @@ class App:
         self.mouse.drag_end()
         self.vision.stop()
         self.voice.stop()
+        self.tts.stop()
         self.web.stop()
         self.worker.stop()
         self.snippet_listener.stop()
