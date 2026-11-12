@@ -175,6 +175,15 @@ class NLU:
         if cfg.get("llm_fallback", False):
             self.llm = LLMFallback(str(cfg.get("llm_model",
                                                "models/qwen2.5-0.5b-instruct-q4_k_m.gguf")))
+        # CoderNLU (Ollama) chen giua rule-based va LLM nho.
+        self.coder = None
+        if (cfg.get("coder", {}) or {}).get("enabled", False):
+            try:
+                from .nlu_coder import CoderNLU
+
+                self.coder = CoderNLU(config)
+            except Exception as exc:
+                log.warning("Khong khoi tao duoc CoderNLU (%s).", exc)
 
     def parse(self, text: str) -> List[Intent]:
         if not self.enabled:
@@ -186,6 +195,10 @@ class NLU:
                 return [intent, Intent("speak", {"text": intent.response},
                                        intent.confidence, "rule")]
             return [intent]
+        if self.coder is not None:
+            event = self.coder.parse(text)
+            if event is not None:
+                return [Intent(event.name, dict(event.payload), 0.9, "coder")]
         if self.llm is not None:
             intent = self.llm.parse(text)
             if intent is not None:

@@ -8,7 +8,9 @@ from core.nlu import NLU, RuleEngine
 
 def make_nlu(base_config):
     cfg = dict(base_config)
-    cfg["nlu"] = dict(base_config.get("nlu", {}), llm_fallback=False, rules=[])
+    # Unit test rule-based: tat CoderNLU de khong goi Ollama that.
+    cfg["nlu"] = dict(base_config.get("nlu", {}), llm_fallback=False, rules=[],
+                      coder={"enabled": False})
     return NLU(cfg)
 
 

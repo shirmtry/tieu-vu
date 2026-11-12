@@ -296,6 +296,26 @@ nlu:
   llm_fallback: false
   llm_model: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
   rules: []
+  # Coder NLU: Qwen2.5-Coder qua Ollama (local). Rule-based van chay truoc.
+  coder:
+    enabled: true
+    model: "qwen2.5-coder:7b"
+    ollama_url: "http://localhost:11434"
+    timeout_sec: 30
+
+# =====================================================================
+# CODER - workspace + lenh an toan cho AI coder mode
+# =====================================================================
+coder:
+  # Moi path cua coding actions phai nam trong thu muc nay.
+  workspace_root: "."
+  # Chi cac executable nay duoc phep chay bang run_command.
+  allowed_commands: ["pytest", "git", "pip", "python", "node", "npm"]
+  command_timeout_sec: 300
+  # Backend cho task coding phuc tap: opencode | aider | none
+  backend: "opencode"
+  opencode_path: "opencode"
+  aider_path: "aider"
 
 # =====================================================================
 # AUTOCOMPLETE - n-gram cuc bo, HUD hien 3 goi y, Tab chap nhan
