@@ -76,8 +76,7 @@ def test_missing_binary_raises(monkeypatch):
 
 
 def test_from_config():
-    assert isinstance(from_config({"coder": {"backend": "opencode"}}),
-                      OpenCodeBackend)
+    assert isinstance(from_config({"coder": {"backend": "opencode"}}), OpenCodeBackend)
     assert isinstance(from_config({"coder": {"backend": "aider"}}), AiderBackend)
     assert isinstance(from_config({"coder": {"backend": "none"}}), NoopBackend)
     assert isinstance(from_config({}), NoopBackend)

@@ -36,8 +36,11 @@ class _RuleNLU:
 class _CoderNLU:
     def __init__(self, event=None):
         self.calls = []
-        self.event = event if event is not None else ActionEvent(
-            "create_file", {"path": "x.py", "content": "print(1)"}, source="voice")
+        self.event = (
+            event
+            if event is not None
+            else ActionEvent("create_file", {"path": "x.py", "content": "print(1)"}, source="voice")
+        )
 
     def parse(self, text):
         self.calls.append(text)
@@ -64,7 +67,7 @@ def test_wake_transition():
     assert wake_transition(Mode.GAZE) is Mode.VOICE
     assert wake_transition(Mode.IDLE) is Mode.VOICE
     assert wake_transition(Mode.VOICE) is None
-    assert wake_transition(Mode.CODE) is None   # giu CODE khi dang noi
+    assert wake_transition(Mode.CODE) is None  # giu CODE khi dang noi
     assert wake_transition(Mode.FOCUS) is None  # FOCUS van block
     assert wake_transition(Mode.VK) is None
 

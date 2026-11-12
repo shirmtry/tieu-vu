@@ -16,8 +16,7 @@ from core.voice.tts_vieneu import VieNeuTTS
 def _tts_cfg(base_config, engine="vieneu"):
     cfg = copy.deepcopy(base_config)
     cfg["voice"] = dict(cfg.get("voice", {}))
-    cfg["voice"]["tts"] = {"engine": engine, "vieneu_voice": "models/vieneu-voice",
-                           "rate": 1.0}
+    cfg["voice"]["tts"] = {"engine": engine, "vieneu_voice": "models/vieneu-voice", "rate": 1.0}
     return cfg
 
 
@@ -99,7 +98,7 @@ def test_no_engine_no_crash(base_config, monkeypatch):
     monkeypatch.setitem(sys.modules, "vieneu", None)
     monkeypatch.setitem(sys.modules, "pyttsx3", None)
     tts = VieNeuTTS(_tts_cfg(base_config))
-    tts.speak("hello", blocking=True)   # khong raise
+    tts.speak("hello", blocking=True)  # khong raise
     assert tts._backend == "none"
 
 

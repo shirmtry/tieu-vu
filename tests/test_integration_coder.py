@@ -18,16 +18,18 @@ from core.voice_engine import VoiceEngine
 
 
 def _wrap(name, **args):
-    return {"message": {"tool_calls": [
-        {"function": {"name": name, "arguments": args}}]}}
+    return {"message": {"tool_calls": [{"function": {"name": name, "arguments": args}}]}}
 
 
 def fake_post(url, payload, timeout):
     text = payload["messages"][-1]["content"]
     if "tạo file" in text.lower():
         match = re.search(r"([\w./\\-]+\.py)", text)
-        return _wrap("create_file", path=(match.group(1) if match else "main.py"),
-                     content="print('hello world')")
+        return _wrap(
+            "create_file",
+            path=(match.group(1) if match else "main.py"),
+            content="print('hello world')",
+        )
     return {"message": {"content": "?"}}
 
 
@@ -35,14 +37,19 @@ def make_cfg(base_config, root):
     cfg = copy.deepcopy(base_config)
     cfg["coder"] = dict(cfg.get("coder", {}), workspace_root=str(root))
     cfg["nlu"] = dict(cfg.get("nlu", {}))
-    cfg["nlu"]["coder"] = {"enabled": True, "model": "qwen2.5-coder:7b",
-                           "ollama_url": "http://localhost:11434",
-                           "timeout_sec": 2}
+    cfg["nlu"]["coder"] = {
+        "enabled": True,
+        "model": "qwen2.5-coder:7b",
+        "ollama_url": "http://localhost:11434",
+        "timeout_sec": 2,
+    }
     cfg["voice"] = dict(cfg.get("voice", {}))
-    cfg["voice"]["stt"] = {"engine": "hybrid",
-                           "phowhisper_model": str(root / "khong-co-model"),
-                           "phowhisper_device": "cpu",
-                           "phowhisper_compute_type": "int8"}
+    cfg["voice"]["stt"] = {
+        "engine": "hybrid",
+        "phowhisper_model": str(root / "khong-co-model"),
+        "phowhisper_device": "cpu",
+        "phowhisper_compute_type": "int8",
+    }
     return cfg
 
 

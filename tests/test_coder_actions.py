@@ -15,10 +15,12 @@ from actions.coder_actions import CoderActions
 
 def make_cfg(base_config, root):
     cfg = copy.deepcopy(base_config)
-    cfg["coder"] = dict(cfg.get("coder", {}), workspace_root=str(root),
-                        allowed_commands=["git", "python", "pytest", "pip",
-                                          "node", "npm"],
-                        command_timeout_sec=60)
+    cfg["coder"] = dict(
+        cfg.get("coder", {}),
+        workspace_root=str(root),
+        allowed_commands=["git", "python", "pytest", "pip", "node", "npm"],
+        command_timeout_sec=60,
+    )
     return cfg
 
 
@@ -115,10 +117,10 @@ def test_git_commit_without_changes(coder, tmp_path):
 
 def test_git_commit_with_changes(coder, tmp_path):
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "t@example.com"],
-                   cwd=tmp_path, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Tester"],
-                   cwd=tmp_path, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"], cwd=tmp_path, capture_output=True
+    )
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=tmp_path, capture_output=True)
     (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     output = coder.git_commit("add a")
     assert "a.txt" in output or "1 file" in output
@@ -128,8 +130,7 @@ def test_git_commit_with_changes(coder, tmp_path):
 # search_code
 # ---------------------------------------------------------------------
 def test_search_code_finds_marker(coder, tmp_path):
-    (tmp_path / "mod.py").write_text("def login():\n    return 'SECRET_MARKER'\n",
-                                     encoding="utf-8")
+    (tmp_path / "mod.py").write_text("def login():\n    return 'SECRET_MARKER'\n", encoding="utf-8")
     results = coder.search_code("SECRET_MARKER")
     assert len(results) == 1
     assert "mod.py:2" in results[0]

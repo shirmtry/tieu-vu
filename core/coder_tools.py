@@ -20,10 +20,11 @@ CODER_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string",
-                             "description": "Đường dẫn tương đối trong workspace."},
-                    "content": {"type": "string",
-                                "description": "Nội dung file."},
+                    "path": {
+                        "type": "string",
+                        "description": "Đường dẫn tương đối trong workspace.",
+                    },
+                    "content": {"type": "string", "description": "Nội dung file."},
                 },
                 "required": ["path"],
             },
@@ -38,8 +39,7 @@ CODER_TOOLS = [
                 "type": "object",
                 "properties": {
                     "cmd": {"type": "string", "description": "Lệnh cần chạy."},
-                    "cwd": {"type": "string",
-                            "description": "Thư mục chạy, mặc định workspace."},
+                    "cwd": {"type": "string", "description": "Thư mục chạy, mặc định workspace."},
                 },
                 "required": ["cmd"],
             },
@@ -82,8 +82,10 @@ CODER_TOOLS = [
                 "type": "object",
                 "properties": {
                     "file": {"type": "string", "description": "File cần giải thích."},
-                    "lines": {"type": "string",
-                              "description": "Khoảng dòng, vd '1-50' (tùy chọn)."},
+                    "lines": {
+                        "type": "string",
+                        "description": "Khoảng dòng, vd '1-50' (tùy chọn).",
+                    },
                 },
                 "required": ["file"],
             },
@@ -97,8 +99,7 @@ CODER_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string",
-                               "description": "Yêu cầu coding đầy đủ cho agent."},
+                    "prompt": {"type": "string", "description": "Yêu cầu coding đầy đủ cho agent."},
                 },
                 "required": ["prompt"],
             },

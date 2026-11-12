@@ -33,7 +33,8 @@ class NoopBackend(CoderBackend):
         raise RuntimeError(
             "Chua cai coder backend. Cai OpenCode (npm i -g opencode-ai) "
             "hoac Aider (pip install aider-chat), roi dat coder.backend "
-            "trong config.yaml. Xem SOLUTION.md.")
+            "trong config.yaml. Xem SOLUTION.md."
+        )
 
 
 class SubprocessBackend(CoderBackend):
@@ -52,12 +53,19 @@ class SubprocessBackend(CoderBackend):
         log.info("Chay %s backend: %s ...", self.name, argv[0])
         try:
             proc = subprocess.Popen(
-                argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", bufsize=1)
+                argv,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
         except FileNotFoundError as exc:
             raise RuntimeError(
-                f"Khong tim thay '{argv[0]}'. Xem SOLUTION.md de cai "
-                f"{self.name}.") from exc
+                f"Khong tim thay '{argv[0]}'. Xem SOLUTION.md de cai " f"{self.name}."
+            ) from exc
         lines: List[str] = []
         if proc.stdout is not None:
             for raw in proc.stdout:

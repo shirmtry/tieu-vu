@@ -40,8 +40,9 @@ def _resample(audio: np.ndarray, sr: int, target: int = TARGET_SAMPLE_RATE) -> n
 class PhoWhisperSTT:
     """Wrapper faster-whisper cho model PhoWhisper-small (tieng Viet)."""
 
-    def __init__(self, model_path: str, device: str = "cpu",
-                 compute_type: str = "int8", language: str = "vi"):
+    def __init__(
+        self, model_path: str, device: str = "cpu", compute_type: str = "int8", language: str = "vi"
+    ):
         self.model_path = str(model_path)
         self.device = str(device)
         self.compute_type = str(compute_type)
@@ -64,18 +65,22 @@ class PhoWhisperSTT:
         try:
             from faster_whisper import WhisperModel
         except ImportError:
-            log.warning("faster-whisper chua cai (pip install faster-whisper) "
-                        "-> fallback Vosk.")
+            log.warning("faster-whisper chua cai (pip install faster-whisper) " "-> fallback Vosk.")
             return None
         if not os.path.isdir(self.model_path):
-            log.warning("Khong tim thay model PhoWhisper tai '%s' -> fallback Vosk. "
-                        "Tai model: xem SOLUTION.md muc cai dat.", self.model_path)
+            log.warning(
+                "Khong tim thay model PhoWhisper tai '%s' -> fallback Vosk. "
+                "Tai model: xem SOLUTION.md muc cai dat.",
+                self.model_path,
+            )
             return None
         try:
-            self._model = WhisperModel(self.model_path, device=self.device,
-                                       compute_type=self.compute_type)
-            log.info("PhoWhisper san sang: %s (%s/%s)", self.model_path,
-                     self.device, self.compute_type)
+            self._model = WhisperModel(
+                self.model_path, device=self.device, compute_type=self.compute_type
+            )
+            log.info(
+                "PhoWhisper san sang: %s (%s/%s)", self.model_path, self.device, self.compute_type
+            )
         except Exception as exc:
             log.warning("Khong load duoc PhoWhisper (%s) -> fallback Vosk.", exc)
             return None
@@ -102,7 +107,8 @@ class PhoWhisperSTT:
                 return ""
             audio = _resample(audio, int(sr))
             segments, _info = model.transcribe(
-                audio, language=self.language, beam_size=5, vad_filter=True)
+                audio, language=self.language, beam_size=5, vad_filter=True
+            )
             text = " ".join(str(seg.text).strip() for seg in segments).strip()
             return text
         except Exception as exc:

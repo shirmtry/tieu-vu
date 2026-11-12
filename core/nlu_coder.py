@@ -38,8 +38,8 @@ def post_json(url: str, payload: dict, timeout: float) -> dict:
     """POST JSON toi Ollama, tra dict. Khong dung cloud."""
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        url, data=body, method="POST",
-        headers={"Content-Type": "application/json"})
+        url, data=body, method="POST", headers={"Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -121,15 +121,14 @@ class CoderNLU:
             if name == "create_file":
                 path = resolve_workspace_path(self.root, str(args.get("path", "")))
                 content = str(args.get("content", ""))
-                return ActionEvent("create_file",
-                                   {"path": str(path), "content": content},
-                                   source="voice")
+                return ActionEvent(
+                    "create_file", {"path": str(path), "content": content}, source="voice"
+                )
             if name == "run_command":
                 cmd = str(args.get("cmd", "")).strip()
                 validate_command(cmd, self.allowed_commands)
                 cwd = resolve_workspace_path(self.root, str(args.get("cwd") or "."))
-                return ActionEvent("run_command",
-                                   {"cmd": cmd, "cwd": str(cwd)}, source="voice")
+                return ActionEvent("run_command", {"cmd": cmd, "cwd": str(cwd)}, source="voice")
             if name == "git_commit":
                 message = str(args.get("message", "")).strip()
                 if not message:
@@ -150,8 +149,7 @@ class CoderNLU:
                 prompt = str(args.get("prompt", "")).strip()
                 if not prompt:
                     return None
-                return ActionEvent("delegate_to_coder", {"prompt": prompt},
-                                   source="voice")
+                return ActionEvent("delegate_to_coder", {"prompt": prompt}, source="voice")
         except (ValueError, PermissionError) as exc:
             log.warning("CoderNLU tu choi tool '%s': %s", name, exc)
             return None
@@ -162,14 +160,15 @@ class CoderNLU:
         """Hoi model giai thich code (dung cho explain_code action)."""
         if not self.enabled or not code.strip():
             return ""
-        prompt = (f"Giải thích ngắn gọn file {path or 'sau đây'} bằng tiếng Việt, "
-                  "nêu mục đích và các hàm chính:\n\n"
-                  f"```\n{code[:8000]}\n```")
+        prompt = (
+            f"Giải thích ngắn gọn file {path or 'sau đây'} bằng tiếng Việt, "
+            "nêu mục đích và các hàm chính:\n\n"
+            f"```\n{code[:8000]}\n```"
+        )
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system",
-                 "content": "Bạn là kỹ sư phần mềm, giải thích code tiếng Việt."},
+                {"role": "system", "content": "Bạn là kỹ sư phần mềm, giải thích code tiếng Việt."},
                 {"role": "user", "content": prompt},
             ],
             "stream": False,

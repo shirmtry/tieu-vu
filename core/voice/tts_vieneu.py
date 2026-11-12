@@ -26,7 +26,7 @@ class VieNeuTTS:
         self.engine_name = str(cfg.get("engine", "vieneu")).lower()
         self.voice_dir = str(cfg.get("vieneu_voice", "models/vieneu-voice"))
         self.rate = float(cfg.get("rate", 1.0))
-        self._backend: Optional[str] = None   # "vieneu" | "pyttsx3" | "none"
+        self._backend: Optional[str] = None  # "vieneu" | "pyttsx3" | "none"
         self._engine = None
         self._init_lock = threading.Lock()
         self._say_lock = threading.Lock()

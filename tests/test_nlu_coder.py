@@ -12,8 +12,7 @@ from core.nlu_coder import CoderNLU
 
 
 def _wrap(name, **args):
-    return {"message": {"tool_calls": [
-        {"function": {"name": name, "arguments": args}}]}}
+    return {"message": {"tool_calls": [{"function": {"name": name, "arguments": args}}]}}
 
 
 def fake_ollama(text: str) -> dict:
@@ -34,8 +33,7 @@ def fake_ollama(text: str) -> dict:
     if "tạo file" in t:
         m = re.search(r"([\w./\\-]+\.py)", text)
         content = "print('hello world')" if "hello" in t else "print(1)"
-        return _wrap("create_file", path=(m.group(1) if m else "main.py"),
-                     content=content)
+        return _wrap("create_file", path=(m.group(1) if m else "main.py"), content=content)
     if "chạy" in t:
         return _wrap("run_command", cmd=text.split("chạy", 1)[1].strip())
     return {"message": {"content": "toi khong hieu"}}
@@ -133,15 +131,15 @@ def test_ollama_unavailable_returns_none(base_config, tmp_path):
 
 
 def test_disabled_coder_returns_none(base_config, tmp_path):
-    coder = CoderNLU(make_cfg(base_config, tmp_path, coder_enabled=False),
-                      post=make_post())
+    coder = CoderNLU(make_cfg(base_config, tmp_path, coder_enabled=False), post=make_post())
     assert coder.parse("tạo file x.py") is None
 
 
 def test_content_json_fallback(base_config, tmp_path):
     def _content_only(_text):
-        return {"message": {"content": (
-            '{"name": "search_code", "arguments": {"query": "login"}}')}}
+        return {
+            "message": {"content": ('{"name": "search_code", "arguments": {"query": "login"}}')}
+        }
 
     coder = make_coder(base_config, tmp_path, post=make_post(_content_only))
     ev = coder.parse("tim login")

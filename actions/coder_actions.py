@@ -30,21 +30,49 @@ from core.state_machine import ActionEvent
 log = logging.getLogger(__name__)
 
 SKIP_DIRS = {
-    ".git", ".venv", "venv", "__pycache__", "node_modules", "models",
-    "browser_profile", "logs", "dist", "build", ".pytest_cache",
-    ".ruff_cache", ".mypy_cache", ".idea", ".vscode",
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "models",
+    "browser_profile",
+    "logs",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".idea",
+    ".vscode",
 }
 TEXT_SUFFIXES = {
-    ".py", ".md", ".yml", ".yaml", ".json", ".txt", ".toml", ".cfg",
-    ".ini", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".bat",
-    ".ps1", ".sh", ".gitignore", ".env.example",
+    ".py",
+    ".md",
+    ".yml",
+    ".yaml",
+    ".json",
+    ".txt",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".html",
+    ".css",
+    ".bat",
+    ".ps1",
+    ".sh",
+    ".gitignore",
+    ".env.example",
 }
 MAX_SEARCH_RESULTS = 100
 
 
 class CoderActions:
-    def __init__(self, config: dict, event_queue=None, tts=None,
-                 coder_nlu=None, backend=None):
+    def __init__(self, config: dict, event_queue=None, tts=None, coder_nlu=None, backend=None):
         cfg = config.get("coder", {}) or {}
         self.root = workspace_root(config)
         self.allowed_commands = list(cfg.get("allowed_commands", []))
@@ -65,8 +93,7 @@ class CoderActions:
             return
         if self.event_queue is not None:
             try:
-                self.event_queue.put_nowait(
-                    ActionEvent("speak", {"text": text}, source="coder"))
+                self.event_queue.put_nowait(ActionEvent("speak", {"text": text}, source="coder"))
                 return
             except queue.Full:
                 log.warning("action_queue day, khong the speak ket qua.")
@@ -111,11 +138,16 @@ class CoderActions:
             raise ValueError(f"cwd khong ton tai: {workdir}")
         try:
             proc = subprocess.run(
-                argv, cwd=str(workdir), capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=self.command_timeout)
+                argv,
+                cwd=str(workdir),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.command_timeout,
+            )
         except subprocess.TimeoutExpired:
-            return {"exit_code": -1,
-                    "output": f"Timeout sau {self.command_timeout}s: {cmd}"}
+            return {"exit_code": -1, "output": f"Timeout sau {self.command_timeout}s: {cmd}"}
         except FileNotFoundError as exc:
             return {"exit_code": -1, "output": str(exc)}
         output = ((proc.stdout or "") + (proc.stderr or "")).strip()
@@ -139,20 +171,30 @@ class CoderActions:
             log.warning("git_commit: message rong, bo qua.")
             return ""
         status = subprocess.run(
-            ["git", "status", "--porcelain"], cwd=str(self.root),
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
+            ["git", "status", "--porcelain"],
+            cwd=str(self.root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         if status.returncode != 0:
-            log.warning("git_commit: khong phai git repo hoac git loi: %s",
-                        (status.stderr or "").strip())
+            log.warning(
+                "git_commit: khong phai git repo hoac git loi: %s", (status.stderr or "").strip()
+            )
             return ""
         if not status.stdout.strip():
             log.warning("git_commit: khong co thay doi nao de commit.")
             return ""
-        subprocess.run(["git", "add", "-A"], cwd=str(self.root),
-                       capture_output=True, text=True)
-        proc = subprocess.run(["git", "commit", "-m", message], cwd=str(self.root),
-                              capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+        subprocess.run(["git", "add", "-A"], cwd=str(self.root), capture_output=True, text=True)
+        proc = subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=str(self.root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         output = ((proc.stdout or "") + (proc.stderr or "")).strip()
         log.info("git_commit '%s' -> exit %d", message, proc.returncode)
         return output
@@ -172,8 +214,7 @@ class CoderActions:
                 if path.suffix.lower() not in TEXT_SUFFIXES:
                     continue
                 try:
-                    lines = path.read_text(encoding="utf-8",
-                                           errors="ignore").splitlines()
+                    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
                 except OSError:
                     continue
                 for lineno, line in enumerate(lines, 1):
@@ -219,8 +260,7 @@ class CoderActions:
     # delegate_to_coder (OpenCode / Aider — Phase 6)
     # ------------------------------------------------------------------
     def _backend_available(self) -> bool:
-        return (self.backend is not None
-                and getattr(self.backend, "name", "none") != "none")
+        return self.backend is not None and getattr(self.backend, "name", "none") != "none"
 
     def _on_backend_line(self, line: str):
         log.info("[coder-backend] %s", line)
@@ -234,8 +274,7 @@ class CoderActions:
     def delegate_async(self, prompt: str):
         def _job():
             if not self._backend_available():
-                self._emit_speak("Chưa cài OpenCode hoặc Aider. "
-                                 "Xem SOLUTION.md để cài đặt.")
+                self._emit_speak("Chưa cài OpenCode hoặc Aider. " "Xem SOLUTION.md để cài đặt.")
                 return
             output = self.delegate_to_coder(prompt)
             self._emit_speak((output or "")[-600:] or "Backend không trả về nội dung.")
