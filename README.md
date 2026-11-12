@@ -43,7 +43,8 @@ Everything runs **offline on CPU** — no cloud, no telemetry sent out, no GPU r
 | **Blink click** | Long blink → left click, double blink → double click | ✅ |
 | **Edge scroll** | Gaze at top/bottom 10 % with head-pitch guard + ramp | ✅ |
 | **Hand gestures** | Pinch click, drag, right-click, palm, swipe | ✅ |
-| **Two-hand control** | Volume, copy, open app, switch desktop | ✅ |
+| **Two-hand control** | Volume, copy, switch desktop | ✅ |
+| **Two-hand gaze click** | Raise both palms, hold 5 s → UIA clicks the element under your gaze | ✅ |
 | **Virtual keyboard** | Transparent Tkinter overlay, dwell-select keys | ✅ |
 | **Voice-to-text** | Vosk streaming (vi + en), insert via clipboard | ✅ |
 | **Voice commands** | Fuzzy Vietnamese/English rule-based NLU | ✅ |
@@ -180,6 +181,12 @@ Right-click the tray icon → *Tạm dừng / Tiếp tục · Hiệu chuẩn gaz
 
 **Click without touching the mouse**
 > Look at a button for 650 ms → click fires. The HUD ring shows dwell progress.
+
+**Click with two hands (no voice)**
+> Look at the target, raise **both hands with open palms**, and hold for **5 s**.
+> Gaze is tracked in `IDLE` too; when the timer fires, UIA resolves the element
+> under your gaze and clicks it (raw-point click if UIA finds nothing).
+> TTS says "Đã bấm". Configure with `state_machine.two_hand_click_hold_sec`.
 
 **Type a sentence by voice**
 > Say the wake word, then speak. The transcript is parsed into an action

@@ -266,3 +266,43 @@ pytest -q --benchmark-only      # find() < 5ms, update() < 0.1ms
 Không ghi ảnh xuống đĩa; OCR text không được lưu trong `FoundElement`;
 telemetry `click_target` chỉ có `target_chars`, khi bấm lưu
 `element_id` / `role` / `duration_ms`.
+
+---
+
+## 10. Phase 9 — Two-Hand Hold Gaze Click (bỏ voice)
+
+### Trigger
+
+- Giơ cả 2 bàn tay xòe 5 ngón, giữ liên tục
+  `state_machine.two_hand_click_hold_sec` (mặc định `5.0` giây).
+- `StabilityTracker("two_open")` lọc nhiễu; hạ tay hoặc đổi mode reset bộ đếm.
+- Hết 5s phát đúng 1 `ActionEvent("gaze_click", {})`; giữ tiếp không lặp.
+
+### Luồng
+
+```
+2 open palms (stable) ─► hold 5s ─► ActionEvent("gaze_click")
+  ─► action_queue ─► ActionWorker ─► ActionDispatcher._gaze_click
+  ─► gaze_point() = _gaze_px * screen size   (gaze tracked ca o IDLE)
+  ─► UiaFinder.find_at_point(x, y)
+        ├─ co element → click_found(): center bbox + left_click
+        └─ khong co   → move_screen + left_click (fallback)
+  ─► TTS "Đã bấm"
+```
+
+### Thay đổi
+
+- `core/state_machine.py`: timer `_two_open_since` + cờ `_two_open_fired`;
+  bỏ hành vi `two_open → open_app`.
+- `main.py`: `_process_gaze()` cập nhật toạ độ mắt ở cả `IDLE` (chỉ GAZE mới
+  dwell/blink/scroll); thêm `_gaze_point_px()` và action `gaze_click`.
+- `config.yaml`: `state_machine.two_hand_click_hold_sec: 5.0`.
+- `tests/test_gesture_click.py`: giữ 5.1s → có event; hạ tay trước 5s →
+  không có event và bộ đếm reset.
+
+### Test tay
+
+1. `python main.py --dev`, để mode `IDLE`.
+2. Nhìn vào nút cần bấm.
+3. Giơ 2 tay xòe 5 ngón, giữ 5s → chuột tới điểm nhìn và click; TTS "Đã bấm".
+
